@@ -27,6 +27,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
+from .core.geo import Albers, MapProjection
 from .core.paths import INTERIM, WEB_DATA
 
 REQUIRED = ["world.json", "cities.json", "nation.json", "sources.json"]
@@ -134,6 +135,7 @@ def check_city_scope(r: Report, scope_dir: Path) -> None:
             r.fail(msg)
         elif share < CITY_COVERAGE_WARN:
             r.warn(msg)
+    check_city_match_and_centre(r, sid, w, scope_dir)
     # privacy: only names of sections, districts and municipalities
     names = [s.get("name") for s in w["states"]] + [c.get("name") for c in w["counties"]] + [b.get("name") for b in docs.get("cities.json") or []]
     bad = [x for x in names if not isinstance(x, str) or not NAME_OK.match(x) or any(p.search(x) for p in PRIVATE_VALUE)]
@@ -141,6 +143,56 @@ def check_city_scope(r: Report, scope_dir: Path) -> None:
         r.fail(f"city/{sid}: {len(bad)} name(s) are not plain place names, e.g. {_sample(bad)}")
     if r.count("FAIL") == fails:
         r.ok(f"city/{sid}: {n} cells, {len(land)} land, {nc} sections, {ns} {sc['levels']['state']['many'].lower()}")
+
+
+CITY_ADRH_WARN, CITY_ADRH_FAIL = 0.97, 0.90  # share of the scope's population living in sections that have an ADRH income
+CITY_BOXES = {  # lon_min, lon_max, lat_min, lat_max
+    "peninsula and Balearics": (-9.5, 4.5, 35.8, 43.9), "Canaries": (-18.3, -13.3, 27.5, 29.5), "Ceuta and Melilla": (-5.6, -2.8, 35.3, 35.95),
+}
+CITY_CENTRE_MAX_KM = 30.0
+
+
+def _haversine_km(lon1, lat1, lon2, lat2) -> float:
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lon2 - lon1) / 2) ** 2
+    return 2 * 6371.0088 * math.asin(math.sqrt(a))
+
+
+def scope_centre(w: dict, proj: dict) -> tuple[float, float]:
+    """lon/lat of the middle of a scope's grid (world.json width/height + the scope's projection.json)."""
+    alb = Albers(*proj["main_albers"])
+    return alb.inverse(w["width"] / 2 + proj["min_x"] - proj["margin"], proj["max_y"] + proj["margin"] - w["height"] / 2)
+
+
+def check_city_match_and_centre(r: Report, sid: str, w: dict, scope_dir: Path) -> None:
+    """ADRH match rate (older builds without the field are skipped) and the scope's place on the map of Spain."""
+    rate = w["scope"].get("adrh_match")
+    if rate is not None:
+        msg = f"city/{sid}: ADRH income matched for {rate:.1%} of the population"
+        if rate < CITY_ADRH_FAIL:
+            r.fail(msg + f" (below {CITY_ADRH_FAIL:.0%})")
+        elif rate < CITY_ADRH_WARN:
+            r.warn(msg + f" (below {CITY_ADRH_WARN:.0%})")
+    try:
+        proj = json.loads((scope_dir / "projection.json").read_text(encoding="utf-8"))
+        lon, lat = scope_centre(w, proj)
+    except (OSError, ValueError, KeyError, TypeError):
+        r.fail(f"city/{sid}: the scope centre cannot be computed from projection.json")
+        return
+    if not any(b[0] <= lon <= b[1] and b[2] <= lat <= b[3] for b in CITY_BOXES.values()):
+        r.fail(f"city/{sid}: scope centre lon {lon:.3f}, lat {lat:.3f} is outside Spain's boxes")
+        return
+    try:  # distance to the city's place on the national map (skipped when the national files are not there)
+        nat = scope_dir.parent.parent
+        cities = json.loads((nat / "cities.json").read_text(encoding="utf-8"))
+        npj = json.loads((nat / "projection.json").read_text(encoding="utf-8"))
+        city = next(c for c in cities if c["id"] == w["scope"]["city"])
+        nlon, nlat = MapProjection(npj["min_x"], npj["max_y"], npj["margin"]).inverse(city["x"], city["y"])
+    except (OSError, ValueError, KeyError, StopIteration, TypeError):
+        return
+    km = _haversine_km(lon, lat, nlon, nlat)
+    if km > CITY_CENTRE_MAX_KM:
+        r.fail(f"city/{sid}: scope centre is {km:.0f} km from the city's position on the national map (limit {CITY_CENTRE_MAX_KM:.0f} km)")
 
 
 def check_city_scopes(r: Report, web_dir: Path) -> None:
@@ -161,6 +213,8 @@ def check_city_scopes(r: Report, web_dir: Path) -> None:
             r.fail(f"city/index.json lists {e.get('id')!r} but its folder is missing")
         else:
             check_city_scope(r, city / e["id"])
+    total = sum(p.stat().st_size for p in city.rglob("*") if p.is_file())
+    r.ok(f"city/: {len(index)} scopes, {total / 1e6:.1f} MB in total")
     extra = sorted(p.name for p in city.iterdir() if p.is_dir() and p.name not in {e.get("id") for e in index})
     if extra:
         r.warn(f"city/ folders not in index.json: {extra}")
@@ -1052,6 +1106,53 @@ def run_builder_checks(r: Report, web_dir: Path, checks=None) -> None:
             r._add(level, f"{name}: {msg}")
 
 
+def check_lens_series(r: Report, web_dir: Path) -> None:
+    """lens_series.json (year slider data), only when the file exists: years ascending, array lengths, the latest
+    year of every series against the current lens of lenses.json, file size."""
+    path = web_dir / "lens_series.json"
+    if not path.exists():
+        return
+    try:
+        doc = json.loads(path.read_text())
+    except ValueError as exc:
+        r.fail(f"lens_series.json: invalid JSON ({exc})")
+        return
+    size = path.stat().st_size
+    (r.ok if size < 1_500_000 else r.fail)(f"lens_series.json: {size / 1e6:.2f} MB (limit 1.5 MB)")
+    lenses = _load(r, web_dir, "lenses.json", False)
+    current = {l["id"]: l for l in (lenses or {}).get("lenses", [])}
+    index = doc.get("index")
+    n = len(index) if index is not None else doc.get("hexes")
+    if index is not None and index != sorted(set(index)):
+        r.fail("lens_series.json: index must be ascending and unique")
+    for s in doc.get("lenses", []):
+        what = f"lens_series.json {s.get('id')}"
+        years, rows = s.get("years") or [], s.get("values") or []
+        if not years or years != sorted(set(years)) or len(rows) != len(years):
+            r.fail(f"{what}: years must be ascending and match the value rows")
+            continue
+        if any(len(row) != n for row in rows):
+            r.fail(f"{what}: every row needs {n} values (one per hex)")
+            continue
+        cur = current.get(s["id"])
+        if cur is None:
+            r.note(f"{what}: no lens with this id in lenses.json, latest year not compared")
+            continue
+        full = cur["values"]
+        idx = index if index is not None else range(len(full))
+        pairs = list(zip(idx, rows[-1]))
+        bad = 0
+        tol = {"income": 1.0, "age": 0.1, "household": 0.01, "elderly": 0.0101, "density": 0.2}.get(s["id"], 1e-9)
+        for i, v in pairs:
+            c = full[i]
+            if s["id"] == "income" and c:
+                tol = 0.01 * c  # weighted by the Atlas population of the year, lenses.json by the 2026 census: euros apart
+            if (v is None) != (c is None) or (v is not None and abs(v - c) > tol + 1e-9):
+                bad += 1
+        share = 1 - bad / max(1, len(pairs))
+        (r.ok if share >= 0.99 else r.warn)(f"{what}: latest year {years[-1]} equals lenses.json for {share:.1%} of hexes")
+
+
 def run(web_dir: Path = WEB_DATA, interim_dir: Path = INTERIM, quiet: bool = False, builder_checks_=None) -> Report:
     """Run every check and return the report.
 
@@ -1102,6 +1203,7 @@ def run(web_dir: Path = WEB_DATA, interim_dir: Path = INTERIM, quiet: bool = Fal
         quality_rivers(r, ctx)
     run_builder_checks(r, web_dir, builder_checks_)
     check_city_scopes(r, web_dir)
+    check_lens_series(r, web_dir)
     return r
 
 

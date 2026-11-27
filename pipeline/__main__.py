@@ -7,7 +7,7 @@
                          the upstream builders of the named ones
   check                  validate web/data/*.json and print a data-quality report
   all                    fetch + process + build everything, then check
-  city    <scope id>|all   build the city-scale map(s) into web/data/city/ (pipeline/scopes.py; not part of build/all)
+  city    <scope id>|all   [--only a,b] [--jobs N] [--plan] build the city-scale map(s) into web/data/city/ (pipeline/scopes.py; not part of build/all)
   list                   show sources and builders
   serve                  serve web/ on http://127.0.0.1:8765
   package                build usaciv.zip: the site to upload, with the source code inside
@@ -27,6 +27,7 @@ import argparse
 import ast
 import functools
 import http.server
+import json
 import sys
 import time
 from pathlib import Path
@@ -175,6 +176,9 @@ def main(argv=None):
     p.add_argument("--deps", action="store_true", help="build: also run upstream builders of the named ones")
     p.add_argument("--offline", action="store_true", help="use cached downloads only; never touch the network")
     p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--jobs", type=int, default=1, help="city: build N scopes in parallel processes")
+    p.add_argument("--only", default="", help="city: comma-separated scope ids to build")
+    p.add_argument("--plan", action="store_true", help="city: print radius and expected land hexes per scope, build nothing")
     a = p.parse_args(argv)
     fetch.OFFLINE = a.offline
     if a.command == "fetch":
@@ -196,11 +200,16 @@ def main(argv=None):
     elif a.command == "serve":
         cmd_serve(a.port)
     elif a.command == "city":
-        from .build.city import build_all
+        from .build.city import build_all, plan_rows
         from .scopes import SCOPES
 
-        ids = list(SCOPES) if a.names in ([], ["all"]) else _pick(a.names, SCOPES, "scope")
-        build_all(ids)
+        wanted = a.names + [x for x in a.only.split(",") if x.strip()]
+        ids = list(SCOPES) if wanted in ([], ["all"]) else _pick([x.strip() for x in wanted], SCOPES, "scope")
+        if a.plan:
+            for row in plan_rows(ids):
+                print(json.dumps(row))
+        else:
+            build_all(ids, jobs=max(1, a.jobs))
     elif a.command == "package":
         from .package import cmd_package
 

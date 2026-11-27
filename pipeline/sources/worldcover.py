@@ -238,7 +238,7 @@ class CoverWindow:
         return 0
 
 
-def read_window(lon_min: float, lat_min: float, lon_max: float, lat_max: float, max_pixel_m: float = MAX_PIXEL_M) -> CoverWindow:
+def read_window(lon_min: float, lat_min: float, lon_max: float, lat_max: float, max_pixel_m: float = MAX_PIXEL_M, empty_ok: bool = False) -> CoverWindow:
     """Fetch (HTTP Range, cached) and decode the TIFF tiles of a ~60-80 m overview that touch the bbox.
     Raises if a needed tile cannot be read; callers fall back to `coarse_window()`."""
     win = None
@@ -283,6 +283,8 @@ def read_window(lon_min: float, lat_min: float, lon_max: float, lat_max: float, 
                     px[k] = zlib.decompress(raw)
         win.tiles[tile] = {"lat0": lat0, "lon0": lon0, "w": w, "h": h, "tw": tw, "th": th, "across": across, "px": px}
     if win is None:
+        if empty_ok:  # every tile missing = open sea: every lookup answers 0 (no data)
+            return CoverWindow(-1, max_pixel_m)
         raise ValueError("no WorldCover tile for the bbox")
     return win
 

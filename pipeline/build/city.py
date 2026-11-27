@@ -4,7 +4,7 @@ NOT a national builder: no REQUIRES / PRODUCES / build(), so `pipeline build` ne
 stay as they are. Run it with `python -m pipeline city <scope id>|all`. Format: docs/DATA_CONTRACTS.md "City scopes".
 
 Method: every census section (INE, 2026) is cut into a fine lattice of points (step = hex radius / 7). Each point
-knows its hex, its section and its ESA WorldCover class (a ~74 m overview read with HTTP Range). The population of a
+knows its hex, its section and its ESA WorldCover class (an overview of 37-80 m read with HTTP Range). The population of a
 section goes to its hexes in proportion to its built-up points (class 50; all its points when it has fewer than 3).
 Everything shown per hexagon is therefore an ESTIMATE, not an INE figure. Only aggregates per section, district and
 municipality are used; nothing about persons.
@@ -22,21 +22,25 @@ from ..core.geo import Albers, R_EARTH_KM, Shape, ShapeIndex
 from ..core.hexgrid import SQRT3, HexGrid
 from ..core.paths import WEB_DATA
 from ..core.store import atomic_write_text
-from ..scopes import LEVELS, SCOPES, district_name, fix_name, municipalities
+from ..scopes import LEVELS, SCOPES, district_abbr, district_name, short_label, expected_hexes, fix_name, municipalities, resolve_radius, sections_area_km2, target_hexes
 from ..sources import ine_sections, worldcover
 from .lenses import DOMAIN_NOTE, GROUPS, INE_LENSES, LAND_LENSES, NEW_LENSES, percentile_domain
-from .world import COVER, COVER_NOTE, GROUPS as COVER_GROUPS, IGNORED_CLASSES, PCT, URBAN_ID, URBAN_MIN_PCT
+from .world import COVER, COVER_NOTE, WATER_TABLE, GROUPS as COVER_GROUPS, IGNORED_CLASSES, PCT, URBAN_ID, URBAN_MIN_PCT
 
 CITY_DIR = WEB_DATA / "city"
 LATTICE_DIV = 7  # lattice step = hex radius / 7
-MARGIN_HEXES = 6
+MARGIN_HEXES, MIN_MARGIN_HEXES = 12, 6  # grid margin around the scope, in hex radii (reduced for big scopes)
+MAX_CELLS = 20000
+SEA_SHARE = 0.2  # share of no-data points (WorldCover has none over open sea) that makes a water hex sea, not lake
+OUTSIDE_RINGS = [(0.0, 0.0)] + [(0.55 * math.cos(math.radians(60 * k)), 0.55 * math.sin(math.radians(60 * k))) for k in range(6)] \
+    + [(0.95 * math.cos(math.radians(60 * k + 30)), 0.95 * math.sin(math.radians(60 * k + 30))) for k in range(6)]  # 13 samples per hex
 COVERAGE_MIN = 0.90  # share of a hex's population that must sit in sections with the value
 MIN_BUILT_POINTS = 3
 WC_CODES = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100]
 WC_INDEX = {c: i for i, c in enumerate(WC_CODES)}
 NC = len(WC_CODES)
 BUILT, WATER_CLASS = WC_INDEX[50], WC_INDEX[80]
-WATER_NONE, WATER_LAKE = 0, 3
+WATER_NONE, WATER_OCEAN, WATER_COAST, WATER_LAKE = 0, 1, 2, 3  # as in the national water table
 OWNER_WATER, OWNER_FOREIGN = -1, -2  # as in the national world.json
 ESTIMATE = "Estimación: cada sección censal se reparte entre sus hexágonos según el suelo construido."
 NOTE = "Los valores son estimaciones: cada sección censal se reparte entre sus hexágonos según el suelo construido."
@@ -123,6 +127,29 @@ def classify(grid, mapped, section_state, cover, to_ll, step, bbox) -> Lattice:
         votes[h][section_state[s]] += 1
         lat.section_points[s] = 1
     return lat
+
+
+def pick_margin(width0: float, height0: float, r: float) -> int:
+    """Margin in hex radii: MARGIN_HEXES, fewer for big scopes so the grid stays under MAX_CELLS (never below MIN_MARGIN_HEXES)."""
+    cell = 1.5 * SQRT3 * r * r
+    for m in range(MARGIN_HEXES, MIN_MARGIN_HEXES, -1):
+        if (width0 + 2 * m * r) * (height0 + 2 * m * r) / cell <= MAX_CELLS:
+            return m
+    return MIN_MARGIN_HEXES
+
+
+def sample_outside(lat: Lattice, cover, to_ll) -> None:
+    """Classify the hexes the lattice walk did not reach (the outer margin): 13 WorldCover samples each."""
+    g, r = lat.grid, lat.grid.radius
+    at = cover.at
+    for h in range(g.size):
+        if lat.points[h]:
+            continue
+        cx, cy = g.center(*g.col_row(h))
+        for dx, dy in OUTSIDE_RINGS:
+            lon, la = to_ll(cx + dx * r, cy + dy * r)
+            lat.cls[h * NC + WC_INDEX.get(at(lon, la), 0)] += 1
+            lat.points[h] += 1
 
 
 def allocation(pairs: dict, n_sections: int) -> list[list[tuple[int, float]]]:
@@ -233,14 +260,42 @@ def _cover_table() -> list[dict]:
     ]
 
 
-def build_scope(scope: dict, out_dir=None) -> dict:
-    """Build one scope and return its measurements. Writes web/data/city/<id>/*.json and updates index.json."""
+def sea_possible(scope: dict, half_diagonal_km: float, world: dict | None = None, cities: list | None = None) -> bool:
+    """True when the national map has sea within reach of the scope's grid (its half diagonal plus one national hex).
+
+    A water body that touches the edge of a city grid is taken as sea, which is right on the coast and wrong for a river
+    crossing an inland city. The national map knows where the sea is; without it (or without the city) the old rule stays.
+    """
+    try:
+        world = world or json.loads((WEB_DATA / "world.json").read_text())
+        cities = cities if cities is not None else json.loads((WEB_DATA / "cities.json").read_text())
+    except (OSError, ValueError):
+        return True
+    cities = cities.get("cities", []) if isinstance(cities, dict) else cities
+    cell = next((c.get("cell") for c in cities if c.get("id") == scope.get("city")), None)
+    if cell is None:
+        return True
+    g = HexGrid(world["grid"]["radius"], world["grid"]["cols"], world["grid"]["rows"])
+    rings = math.ceil((half_diagonal_km + g.radius) / (SQRT3 * g.radius))
+    seen, front = {cell}, [cell]
+    for _ in range(rings + 1):
+        if any(world["water"][h] in (WATER_OCEAN, WATER_COAST) for h in front):
+            return True
+        front = [j for h in front for j in g.neighbours(h) if j >= 0 and j not in seen and not seen.add(j)]
+    return False
+
+
+def build_scope(scope: dict, out_dir=None, write_index: bool = True) -> dict:
+    """Build one scope and return its measurements. Writes web/data/city/<id>/*.json and (write_index) updates index.json.
+    A scope with hex_km None gets its radius from the municipality's area and sections (scopes.radius_for)."""
     t0 = time.time()
-    sid, r = scope["id"], scope["hex_km"]
+    sid = scope["id"]
     out_dir = (out_dir or CITY_DIR) / sid
     codes = municipalities(scope)
     sections = ine_sections.load_sections(set(codes))
     stats = ine_sections.load_section_stats(set(codes))
+    r = resolve_radius(scope, sections)
+    scope = {**scope, "hex_km": r}
     sstats = [stats["sections"].get(s["cusec"]) or {f: None for f in ine_sections.SECTION_FIELDS} for s in sections]
     n_sec = len(sections)
 
@@ -259,47 +314,92 @@ def build_scope(scope: dict, out_dir=None) -> dict:
     alb, params, rings = project_sections(sections)
     xs = [p[0] for s in rings for rg in s for p in rg]
     ys = [p[1] for s in rings for rg in s for p in rg]
-    margin = MARGIN_HEXES * r
     min_x, max_y = min(xs), max(ys)
+    mh = pick_margin(max(xs) - min_x, max_y - min(ys), r)
+    margin = mh * r
     width, height = max(xs) - min_x + 2 * margin, max_y - min(ys) + 2 * margin
     grid = HexGrid.covering(width, height, r)
     mapped = [[[(x - min_x + margin, max_y - y + margin) for x, y in rg] for rg in s] for s in rings]
     to_ll = lambda x, y: alb.inverse(x + min_x - margin, max_y + margin - y)
     lon_all = [p[0] for s in sections for rg in s["rings"] for p in rg]
     lat_all = [p[1] for s in sections for rg in s["rings"] for p in rg]
-    pad = 0.01
+    pad_lat = (margin + r) / 111.2 + 0.01  # the whole grid (scope plus margin) is classified
+    pad_lon = pad_lat / math.cos(math.radians(sum(lat_all) / len(lat_all)))
     fine = True
     try:
-        cover = worldcover.read_window(min(lon_all) - pad, min(lat_all) - pad, max(lon_all) + pad, max(lat_all) + pad)
+        cover = worldcover.read_window(min(lon_all) - pad_lon, min(lat_all) - pad_lat, max(lon_all) + pad_lon, max(lat_all) + pad_lat,
+                                       max_pixel_m=overview_pixel_m(r), empty_ok=True)
     except Exception as exc:  # honest fallback: the ~600 m overview the national map uses
         print(f"    ! fine WorldCover overview not available ({exc}); using the smallest overview (~600 m)")
         cover, fine = worldcover.coarse_window(), False
     step = r / LATTICE_DIV
     bbox = (margin - r, margin - r, width - margin + r, height - margin + r)
     lat = classify(grid, mapped, section_state, cover, to_ll, step, bbox)
+    sample_outside(lat, cover, to_ll)
     n = grid.size
     area = 1.5 * SQRT3 * r * r  # km2 of a hexagon
 
-    # owner / county / water
+    # population weights (needed first: a hex with people stays land)
+    alloc = allocation(lat.pairs, n_sec)
+    pop_of = [s["pop"] for s in sstats]
+    hex_parts: dict[int, list] = defaultdict(list)
+    for s, rows in enumerate(alloc):
+        for h, w in rows:
+            hex_parts[h].append((s, w))
+    hex_pop = [0.0] * n
+    for h, parts in hex_parts.items():
+        hex_pop[h] = sum(w * (pop_of[s] or 0) for s, w in parts)
+
+    # owner / county / water. owner: state by most points (-1 water, -2 foreign land); county: the dominant section AMONG the
+    # sections of the owner; a hex mostly water (class 80 or no data) is water unless it has people.
     owner, county, water = [OWNER_FOREIGN] * n, [-1] * n, [WATER_NONE] * n
     sec_hex_pts: dict[int, Counter] = defaultdict(Counter)
     for (s, h), (_, k) in lat.pairs.items():
         sec_hex_pts[h][s] += k
+
+    def wet(h):
+        return lat.points[h] > 0 and (lat.cls[h * NC] + lat.cls[h * NC + WATER_CLASS]) * 2 >= lat.points[h]
+
     for h in range(n):
-        if lat.state_votes.get(h):
-            v = lat.state_votes[h]
+        v = lat.state_votes.get(h)
+        if v:
             owner[h] = max(sorted(v), key=lambda s_: v[s_])
-            c = sec_hex_pts[h]
-            county[h] = max(sorted(c), key=lambda s_: c[s_])
-        elif lat.points[h]:
-            known = lat.points[h] - lat.cls[h * NC]
-            if known and lat.cls[h * NC + WATER_CLASS] * 2 >= known:
-                owner[h], water[h] = OWNER_WATER, WATER_LAKE
+            c = {s_: k for s_, k in sec_hex_pts[h].items() if section_state[s_] == owner[h]}
+            county[h] = max(sorted(c), key=lambda s_: c[s_]) if c else -1
+            if hex_pop[h] <= 0 and wet(h):
+                owner[h], county[h], water[h] = OWNER_WATER, -1, WATER_LAKE
+        elif wet(h):
+            owner[h], water[h] = OWNER_WATER, WATER_LAKE
+    # Sea = a connected water body that touches the edge of the grid or holds hexes with no-data points (WorldCover has none over
+    # open sea and marks the coastal sea as class 80, so the class alone cannot tell sea from lake); the rest stay lakes.
+    edge = lambda h: not 0 < grid.col_row(h)[0] < grid.cols - 1 or not 0 < grid.col_row(h)[1] < grid.rows - 1
+    seen, sea = set(), set()
+    coastal = sea_possible(scope, 0.5 * math.hypot(width, height))  # inland: a river that leaves the grid is not sea
+    for h0 in range(n):
+        if not coastal:
+            break
+        if not water[h0] or h0 in seen:
+            continue
+        comp, queue, is_sea = [h0], [h0], False
+        seen.add(h0)
+        while queue:
+            h = queue.pop()
+            is_sea = is_sea or edge(h) or not lat.points[h] or lat.cls[h * NC] >= SEA_SHARE * lat.points[h]
+            for j in grid.neighbours(h):
+                if j >= 0 and water[j] and j not in seen:
+                    seen.add(j)
+                    comp.append(j)
+                    queue.append(j)
+        if is_sea:
+            sea.update(comp)
+    for h in sea:
+        water[h] = WATER_COAST if any(j >= 0 and owner[j] != OWNER_WATER for j in grid.neighbours(h)) else WATER_OCEAN
     land = [h for h in range(n) if owner[h] >= 0]
+    foreign = [h for h in range(n) if owner[h] == OWNER_FOREIGN]
 
     # cover and pct (points of the whole hex, including those just outside the scope)
     cover_id, pct = [0] * n, {k: [0] * n for k in PCT}
-    for h in land:
+    for h in land + foreign:
         counts = Counter({code: lat.cls[h * NC + i] for code, i in WC_INDEX.items()})
         valid = sum(v for code, v in counts.items() if code not in IGNORED_CLASSES)
         if not valid:
@@ -316,16 +416,6 @@ def build_scope(scope: dict, out_dir=None) -> dict:
         for k, cs in PCT.items():
             pct[k][h] = round(100 * sum(counts[c] for c in cs) / valid)
 
-    # population weights
-    alloc = allocation(lat.pairs, n_sec)
-    pop_of = [s["pop"] for s in sstats]
-    hex_parts: dict[int, list] = defaultdict(list)
-    for s, rows in enumerate(alloc):
-        for h, w in rows:
-            hex_parts[h].append((s, w))
-    hex_pop = [0.0] * n
-    for h, parts in hex_parts.items():
-        hex_pop[h] = sum(w * (pop_of[s] or 0) for s, w in parts)
     ine_pop = sum(p or 0 for p in pop_of)
     on_hexes = sum(hex_pop[h] for h in land)
     if abs(on_hexes - ine_pop) > 0.001 * ine_pop:
@@ -381,7 +471,9 @@ def build_scope(scope: dict, out_dir=None) -> dict:
     sec_x = {}
     for s, rows in enumerate(alloc):
         if rows:
-            sec_x[s] = max(rows, key=lambda t: t[1])[0]
+            on_land = [t for t in rows if owner[t[0]] >= 0]
+            if on_land:
+                sec_x[s] = max(on_land, key=lambda t: t[1])[0]
     muni_cell = [sec_x.get(s, -1) for s in range(n_sec)]
     st_pop = [0.0] * len(state_codes)
     st_inc = [[0.0, 0.0] for _ in state_codes]
@@ -407,16 +499,8 @@ def build_scope(scope: dict, out_dir=None) -> dict:
 
     def abbr(i):
         if level == "district":
-            return state_codes[i][-2:]
-        # Municipality: no leading article, then initials of the main words (San Sebastian de los Reyes -> SSR) or the first 3 letters.
-        skip = {"el", "la", "los", "las", "de", "del", "d", "l"}
-        words = [x for x in re.split(r"[\s'\-/]+", state_name[i]) if x]
-        while words and words[0].lower() in skip:
-            words.pop(0)
-        main = [x for x in words if x.lower() not in skip]
-        if len(main) >= 2:
-            return "".join(x[0] for x in main[:3]).upper()
-        return (main[0] if main else state_name[i])[:3].upper()
+            return district_abbr(scope, state_codes[i])
+        return short_label(state_name[i])
 
     null_fields = {"employed": None, "jobs": None, "yields": None, "median_income": None, "home_value": None, "median_rent": None,
                    "rent_burden": None, "unemployment": None, "gdp": None, "gdp_year": None, "gdp_estimated": None,
@@ -453,13 +537,17 @@ def build_scope(scope: dict, out_dir=None) -> dict:
 
     scope_doc = {"id": sid, "kind": scope["kind"], "name": scope["name"], "title": scope["title"], "hex_km": r, "levels": LEVELS[level],
                  "note": NOTE, "city": scope["city"], "population": round(ine_pop), "hex_population": round(on_hexes),
-                 "sections": n_sec, "census_year": census, "adrh_year": vint.get("30824")}
+                 "sections": n_sec, "census_year": census, "adrh_year": vint.get("30824"),
+                 "adrh_match": (stats["match"].get(ine_sections.INCOME) or {}).get("pop_share_matched")}
     tables = {
-        "water": [{"id": 0, "name": "Tierra", "rule": "Hexágono con puntos de sección censal o de tierra de WorldCover."},
-                  {"id": 3, "name": "Lago", "color": "#3a80b0", "rule": "Hexágono fuera del ámbito cuya mayoría de puntos son agua permanente (clase 80 de WorldCover)."}],
+        "water": [
+            {"id": 0, "name": "Tierra", "rule": "Hexágono con puntos de sección censal, o de tierra de WorldCover fuera del ámbito (tierra de fuera, en tono apagado)."},
+            {**WATER_TABLE[1], "rule": "Mar abierto: hexágono de agua sin vecinos de tierra, unido por agua a puntos sin dato de WorldCover (no hay dato sobre el mar abierto)."},
+            {**WATER_TABLE[2], "rule": "Mar junto a un hexágono de tierra (propia o de fuera)."},
+            {**WATER_TABLE[3], "rule": "Agua que no llega al mar: la mayoría de sus puntos son agua permanente (clase 80 de WorldCover)."}],
         "relief": [{"id": 0, "name": "Llano", "rule": "A esta escala no hay fuente de altitud: toda la tierra se dibuja llana."}],
         "cover": _cover_table(),
-        "notes": {"water": "Solo hay agua en los hexágonos fuera del ámbito; dentro, un embalse o un río cuentan como tierra con porcentaje de agua en su cobertura.",
+        "notes": {"water": "Un hexágono es agua cuando la mayoría de sus puntos de WorldCover son agua permanente o no tienen dato (mar abierto). Dentro del ámbito solo si no tiene población: el puerto o la costa se dibujan como mar, y un embalse con habitantes sigue siendo tierra.",
                   "relief": "No hay fuente de altitud a esta escala en esta versión piloto: altitud 0 y relieve llano en todos los hexágonos de tierra.",
                   "cover": COVER_NOTE},
     }
@@ -499,9 +587,9 @@ def build_scope(scope: dict, out_dir=None) -> dict:
          "used_for": ["Población repartida, densidad, extranjeros y nacidos fuera en los mapas de ciudad"], "vintage": f"Censo anual {census}",
          "files": [{"file": f"{t}.csv", "url": f"https://www.ine.es/jaxiT3/Tabla.htm?t={t}"} for t in ("65032", "65031")]},
         {**worldcover.WorldCover.info.to_dict(), "vintage": "ESA WorldCover v200 (2021)", "files": [],
-         "description": ("Clases de cobertura del suelo a 10 m. Los mapas de ciudad leen la vista general de ~74 m, solo las teselas TIFF que tocan el ámbito, "
+         "description": (f"Clases de cobertura del suelo a 10 m. Los mapas de ciudad leen una vista general de ~{cover.pixel_m:.0f} m, solo las teselas TIFF que tocan el ámbito, "
                          "con peticiones HTTP por rangos." if fine else
-                         "Clases de cobertura del suelo a 10 m. En esta versión se leyó la vista general más pequeña (~600 m): no se pudo leer la de ~74 m.")},
+                         "Clases de cobertura del suelo a 10 m. En esta versión se leyó la vista general más pequeña (~600 m): no se pudo leer la fina.")},
     ]
     projection = {"r_earth_km": R_EARTH_KM, "min_x": min_x, "max_y": max_y, "margin": margin, "main_albers": params, "insets": []}
 
@@ -512,15 +600,24 @@ def build_scope(scope: dict, out_dir=None) -> dict:
         text = json.dumps(doc, separators=(",", ":"), allow_nan=False, ensure_ascii=False)
         atomic_write_text(out_dir / name, text)
         sizes[name] = len(text.encode("utf-8"))
-    update_index(scope, round(ine_pop), out_dir.parent)
-    res = {"id": sid, "grid": f"{grid.cols}x{grid.rows}", "land_hexes": len(land), "sections": n_sec, "population": round(ine_pop),
-           "hex_population": round(on_hexes), "sizes": sizes, "seconds": round(time.time() - t0, 1), "coverage": coverage,
+    if write_index:
+        update_index(scope, round(ine_pop), out_dir.parent)
+    res = {"id": sid, "hex_km": r, "name": scope["name"], "kind": scope["kind"], "title": scope["title"], "city": scope["city"],
+           "cells": grid.size, "adrh_match": scope_doc["adrh_match"], "grid": f"{grid.cols}x{grid.rows}", "land_hexes": len(land), "sections": n_sec, "population": round(ine_pop),
+           "hex_population": round(on_hexes), "margin_hexes": mh, "water_cells": sum(1 for h in range(n) if owner[h] == OWNER_WATER),
+           "sea_cells": len(sea), "foreign_cells": len(foreign), "sizes": sizes, "seconds": round(time.time() - t0, 1), "coverage": coverage,
            "match": stats["match"], "overview": f"{cover.pixel_m:.0f} m" + ("" if fine else " (fallback)"),
            "wc_tiff_tiles": cover.tiff_tiles, "wc_bytes": cover.bytes_read, "banners": len(banners)}
     return res
 
 
+def overview_pixel_m(radius_km: float) -> float:
+    """Coarsest WorldCover pixel (m) allowed for a hex radius: radius / 3, never coarser than the 80 m default."""
+    return min(worldcover.MAX_PIXEL_M, radius_km * 1000 / 3)
+
+
 def update_index(scope: dict, population: int, city_dir=None) -> None:
+    """Add or replace one scope in index.json; the list is sorted by population (largest first), then id."""
     city_dir = city_dir or CITY_DIR
     path = city_dir / "index.json"
     try:
@@ -531,14 +628,57 @@ def update_index(scope: dict, population: int, city_dir=None) -> None:
              "population": population, "title": scope["title"]}
     by_id = {e["id"]: e for e in doc.get("scopes", [])}
     by_id[scope["id"]] = entry
-    order = [i for i in SCOPES if i in by_id] + sorted(i for i in by_id if i not in SCOPES)
-    atomic_write_text(path, json.dumps({"scopes": [by_id[i] for i in order]}, separators=(",", ":"), ensure_ascii=False))
+    entries = sorted(by_id.values(), key=lambda e: (-e["population"], e["id"]))
+    atomic_write_text(path, json.dumps({"scopes": entries}, separators=(",", ":"), ensure_ascii=False))
 
 
-def build_all(ids=None) -> list[dict]:
+def plan_rows(ids) -> list[dict]:
+    """Radius and expected land hexes of the scopes without building them (needs the sections, cached per municipality)."""
+    codes = {c for sid in ids for c in municipalities(SCOPES[sid])}
+    ine_sections.load_sections(codes)
+    rows = []
+    for sid in ids:
+        secs = ine_sections.load_sections(set(municipalities(SCOPES[sid])))
+        area = sections_area_km2(secs)
+        r = resolve_radius(SCOPES[sid], secs)
+        rows.append({"id": sid, "sections": len(secs), "area_km2": round(area, 1), "hex_km": r,
+                     "target_hexes": None if SCOPES[sid].get("hex_km") else target_hexes(len(secs)), "expected_hexes": expected_hexes(area, r)})
+    return rows
+
+
+def scope_line(res: dict) -> str:
+    adrh = res.get("adrh_match")
+    diff = res["hex_population"] / res["population"] - 1 if res["population"] else 0
+    return (f"[city] {res['id']}: r={res['hex_km']} km cells={res['cells']} land={res['land_hexes']} sections={res['sections']} "
+            f"pop={res['hex_population']:,}/{res['population']:,} ({diff:+.3%}) adrh={'n/a' if adrh is None else f'{adrh:.1%}'} {res['seconds']}s")
+
+
+def _build_one(sid: str) -> dict:
+    return build_scope(SCOPES[sid], write_index=False)
+
+
+def build_all(ids=None, jobs: int = 1) -> list[dict]:
+    """Build the scopes. Section geometry and statistics are loaded ONCE for every municipality of the requested
+    scopes (one streaming pass over the big INE tables, cached per municipality); then each scope reads its cache.
+    jobs > 1 builds scopes in parallel processes; index.json is written once at the end, by this process."""
+    ids = list(ids or SCOPES)
+    codes = {c for sid in ids for c in municipalities(SCOPES[sid])}
+    t0 = time.time()
+    ine_sections.load_sections(codes)
+    ine_sections.load_section_stats(codes)
+    print(f"[city] sections and statistics ready for {len(codes)} municipalities in {time.time() - t0:.0f}s", flush=True)
     out = []
-    for sid in ids or list(SCOPES):
-        print(f"[city] {sid}")
-        out.append(build_scope(SCOPES[sid]))
-        print("    " + json.dumps(out[-1], ensure_ascii=False))
+    if jobs > 1 and len(ids) > 1:
+        import multiprocessing
+
+        with multiprocessing.get_context("fork").Pool(min(jobs, len(ids))) as pool:
+            for res in pool.imap_unordered(_build_one, ids):
+                print(scope_line(res), flush=True)
+                out.append(res)
+    else:
+        for sid in ids:
+            out.append(_build_one(sid))
+            print(scope_line(out[-1]), flush=True)
+    for res in out:
+        update_index({**SCOPES[res["id"]], "hex_km": res["hex_km"]}, res["population"])
     return out
