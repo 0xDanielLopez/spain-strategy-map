@@ -5,7 +5,7 @@ from ..core.source import Source, SourceInfo
 # ETOPO1 (1 arc-minute) via NOAA ERDDAP, sampled every 2nd point (~3.7 km). The window covers the
 # whole map rectangle (mainland Spain, the Balearic and Canary Islands, Ceuta, Melilla and the neighbours).
 STRIDE = 2
-LAT, LON = (26.5, 45.5), (-19.5, 5.5)
+LAT, LON = (26.5, 45.5), (-19.5, 6.5)  # the map's north-east corner reaches 5.9 E
 URL = (
     "https://coastwatch.pfeg.noaa.gov/erddap/griddap/etopo180.csv"
     f"?altitude%5B({LAT[0]}):{STRIDE}:({LAT[1]})%5D%5B({LON[0]}):{STRIDE}:({LON[1]})%5D"

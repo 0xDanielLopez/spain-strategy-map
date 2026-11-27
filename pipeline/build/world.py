@@ -19,6 +19,19 @@ from ..core.store import load_interim, save_interim, write_web
 REQUIRES = ["gisco_lau", "natural_earth", "etopo", "worldcover"]
 PRODUCES = ["_world", "world.json"]
 
+# Licence and attribution of the data in this file (web/data/world.json). The GISCO-derived parts (owner, county,
+# states, counties, land/water) are for non-commercial use only and are not covered by the code's MIT licence.
+ATTRIBUTION = [
+    {"data": "owner, county, states, counties, land and water",
+     "source": "Eurostat GISCO, Local Administrative Units (LAU) 2024",
+     "license": "© EuroGeographics for the administrative boundaries. Non-commercial use only, with this notice visible; not under the MIT licence."},
+    {"data": "cover, pct",
+     "source": "ESA WorldCover 10 m 2021 v200",
+     "license": "CC BY 4.0. © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium."},
+    {"data": "elev, elev_max, relief, sea depth", "source": "NOAA ETOPO1 via ERDDAP", "license": "Public domain"},
+    {"data": "foreign land, lakes, rivers", "source": "Natural Earth 1:50m v5.1.2", "license": "Public domain"},
+]
+
 HEX_RADIUS_KM = 10.0
 MARGIN_KM = 80.0
 
@@ -598,6 +611,7 @@ def build() -> None:
         {
             "version": 2,
             "country": "Spain",
+            "attribution": ATTRIBUTION,
             "grid": grid.to_dict(),
             "width": round(width, 1),
             "height": round(height, 1),

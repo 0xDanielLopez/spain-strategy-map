@@ -134,6 +134,11 @@ def check_world(r: Report, w) -> dict | None:
     fails_before = r.count("FAIL")
     if w.get("version") != 2:
         r.fail(f"world.json: version is {w.get('version')!r}, expected 2")
+    attr = w.get("attribution")
+    if not (isinstance(attr, list) and attr and all(isinstance(a, dict) and a.get("source") and a.get("license") for a in attr)):
+        r.fail("world.json: attribution must list every data source with its licence")
+    elif not any("EuroGeographics" in a["license"] for a in attr):
+        r.fail("world.json: attribution lacks the EuroGeographics notice required by the GISCO terms")
     if not need_keys(r, "world.json grid", w.get("grid"), ["radius", "cols", "rows"]):
         return None
     g = w["grid"]

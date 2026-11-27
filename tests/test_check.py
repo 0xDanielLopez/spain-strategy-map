@@ -14,7 +14,7 @@ def dataset():
     n = len(owner)
     water = [0 if o != -1 else 1 for o in owner]
     world = {
-        "version": 2, "country": "Spain", "grid": {"radius": 10.0, "cols": 7, "rows": 3}, "width": 130.0, "height": 40.0, "margin": 0,
+        "version": 2, "country": "Spain", "attribution": [{"data": "owner", "source": "GISCO LAU", "license": "© EuroGeographics for the administrative boundaries"}], "grid": {"radius": 10.0, "cols": 7, "rows": 3}, "width": 130.0, "height": 40.0, "margin": 0,
         "insets": [{"name": "Canarias", "x0": 40.0, "y0": 15.0, "x1": 58.0, "y1": 29.0}],
         "owner": owner, "county": [0 if o >= 0 else -1 for o in owner], "elev": [10 if o >= 0 else -50 for o in owner],
         "water": water, "relief": [i % 3 if o >= 0 else 0 for i, o in enumerate(owner)],

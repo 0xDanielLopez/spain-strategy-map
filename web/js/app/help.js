@@ -40,7 +40,7 @@ export function initHelp() {
       </section>`).join("")}</div>
     <p class="help-foot">Every number traces back to public data: open the <b>Almanac</b> for sources.
       The link in the address bar always reopens this exact view.
-      Source code: <a href="spain-strategy-map-source.zip" download>spain-strategy-map-source.zip</a> (MIT; run it with uv, see its README).<br>Based on usaciv by Andrej Karpathy (MIT).</p>`;
+      Source code: <a href="https://github.com/0xDanielLopez/spain-strategy-map" target="_blank" rel="noopener">github.com/0xDanielLopez/spain-strategy-map</a> (code MIT, data under each source's terms; see the README).<br>Based on usaciv by Andrej Karpathy (MIT).</p>`;
 
   const close = () => {
     if (modal.hidden) return;

@@ -196,9 +196,12 @@ class MapProjection:
         return [self(p[0], p[1], region) for p in ring]
 
     def hidden(self, lon: float, lat: float) -> bool:
-        """True if a main-region point lands under an inset frame (callers drop it)."""
-        if self.region_of(lon, lat) != "main":
-            return False
+        """True if a point must be dropped: a main-region point that lands under an inset frame, or an inset-region
+        point (the rim of its lon/lat box) that lands outside its own frame."""
+        region = self.region_of(lon, lat)
+        if region != "main":
+            inset = next(i for i in self.insets if i.name == region)
+            return not inset.contains_xy(*inset.project(lon, lat))
         x, y = self._albers(lon, lat)
         return any(i.contains_xy(x, y) for i in self.insets)
 
