@@ -55,6 +55,117 @@ PCT_KEYS = ["forest", "crop", "grass", "shrub", "wetland", "developed"]
 COLOR = re.compile(r"^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?([0-9a-fA-F]{2})?$")
 
 
+# ---------------------------------------------------------------- city scopes (web/data/city/<id>/)
+
+CITY_FILES = ("world.json", "cities.json", "nation.json", "lenses.json", "states.json", "sources.json", "projection.json")
+CITY_WORLD_KEYS = ("version", "country", "attribution", "grid", "width", "height", "margin", "insets", "owner", "county", "elev",
+                   "elev_max", "water", "relief", "cover", "pct", "pop", "tables", "states", "counties", "muni_cell", "forced",
+                   "rivers", "scope")
+CITY_SCOPE_KEYS = ("id", "kind", "name", "title", "hex_km", "levels", "note")
+CITY_MAX_BYTES = 3_000_000
+CITY_COVERAGE_WARN, CITY_COVERAGE_FAIL = 0.60, 0.30
+NAME_OK = re.compile(r"^[\w .,'()/·-]{1,80}$")
+
+
+def check_city_scope(r: Report, scope_dir: Path) -> None:
+    """One scope folder: files, keys, array lengths, population conservation, lens coverage, sizes, names only."""
+    sid = scope_dir.name
+    docs, fails = {}, r.count("FAIL")
+    for name in CITY_FILES:
+        path = scope_dir / name
+        if not path.exists():
+            r.fail(f"city/{sid}/{name} is missing")
+            continue
+        if path.stat().st_size > CITY_MAX_BYTES:
+            r.fail(f"city/{sid}/{name} is {path.stat().st_size / 1e6:.1f} MB (limit 3 MB)")
+        try:
+            docs[name] = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            r.fail(f"city/{sid}/{name} is not valid JSON ({exc})")
+    w = docs.get("world.json")
+    if not isinstance(w, dict):
+        return
+    missing = [k for k in CITY_WORLD_KEYS if k not in w]
+    if missing:
+        r.fail(f"city/{sid}/world.json lacks keys {missing}")
+        return
+    sc = w["scope"]
+    if not isinstance(sc, dict) or any(k not in sc for k in CITY_SCOPE_KEYS):
+        r.fail(f"city/{sid}/world.json scope lacks keys {CITY_SCOPE_KEYS}")
+        return
+    if sc["id"] != sid:
+        r.fail(f"city/{sid}: scope.id is {sc['id']!r}")
+    if w["insets"] != []:
+        r.fail(f"city/{sid}: insets must be empty")
+    n = w["grid"]["cols"] * w["grid"]["rows"]
+    for k in ("owner", "county", "elev", "elev_max", "water", "relief", "cover", "pop"):
+        if len(w[k]) != n:
+            r.fail(f"city/{sid}/world.json {k} has {len(w[k])} cells, the grid has {n}")
+    for k, arr in w["pct"].items():
+        if len(arr) != n:
+            r.fail(f"city/{sid}/world.json pct.{k} has {len(arr)} cells, the grid has {n}")
+    ns, nc = len(w["states"]), len(w["counties"])
+    if any(not (-2 <= o < ns) for o in w["owner"]) or any(not (-1 <= c < nc) for c in w["county"]):
+        r.fail(f"city/{sid}/world.json owner/county index out of range")
+    if len(w["muni_cell"]) != nc:
+        r.fail(f"city/{sid}/world.json muni_cell has {len(w['muni_cell'])} entries for {nc} counties")
+    land = [i for i, o in enumerate(w["owner"]) if o >= 0]
+    # population conservation
+    total = sum(p for p in w["pop"] if p is not None)
+    ine = (docs.get("nation.json") or {}).get("nation", {}).get("population")
+    if not ine:
+        r.fail(f"city/{sid}/nation.json has no population")
+    elif abs(total - ine) > 0.001 * ine:
+        r.fail(f"city/{sid}: population on the hexes {total:,.0f} differs from the sections' {ine:,.0f} by more than 0.1 %")
+    else:
+        r.ok(f"city/{sid}: population on the hexes {total:,.0f} = sections {ine:,.0f} ({total / ine - 1:+.4%})")
+    # lens coverage
+    for lens in (docs.get("lenses.json") or {}).get("lenses", []):
+        vals = lens.get("values", [])
+        if len(vals) != n:
+            r.fail(f"city/{sid} lens {lens.get('id')}: {len(vals)} values for {n} cells")
+            continue
+        # INE lenses describe people: they are measured against the land hexes that hold population (parks and farmland
+        # have none and stay without data); land-cover lenses against all land hexes.
+        base = [i for i in land if w["pop"][i]] if str(lens.get("source", "")).startswith("ine") else land
+        share = sum(1 for i in base if vals[i] is not None) / len(base) if base else 0
+        msg = f"city/{sid} lens {lens.get('id')}: {share:.0%} of {len(base)} {'populated ' if base is not land else ''}land hexes have a value"
+        if share < CITY_COVERAGE_FAIL:
+            r.fail(msg)
+        elif share < CITY_COVERAGE_WARN:
+            r.warn(msg)
+    # privacy: only names of sections, districts and municipalities
+    names = [s.get("name") for s in w["states"]] + [c.get("name") for c in w["counties"]] + [b.get("name") for b in docs.get("cities.json") or []]
+    bad = [x for x in names if not isinstance(x, str) or not NAME_OK.match(x) or any(p.search(x) for p in PRIVATE_VALUE)]
+    if bad:
+        r.fail(f"city/{sid}: {len(bad)} name(s) are not plain place names, e.g. {_sample(bad)}")
+    if r.count("FAIL") == fails:
+        r.ok(f"city/{sid}: {n} cells, {len(land)} land, {nc} sections, {ns} {sc['levels']['state']['many'].lower()}")
+
+
+def check_city_scopes(r: Report, web_dir: Path) -> None:
+    """Runs only when web/data/city/ exists."""
+    city = web_dir / "city"
+    if not city.is_dir():
+        return
+    r.section("city scopes")
+    try:
+        index = json.loads((city / "index.json").read_text(encoding="utf-8"))["scopes"]
+    except (OSError, ValueError, KeyError):
+        r.fail("city/index.json is missing or has no scopes")
+        return
+    for e in index:
+        if any(k not in e for k in ("id", "name", "kind", "city", "hex_km", "population", "title")):
+            r.fail(f"city/index.json entry {e.get('id')!r} lacks fields")
+        if not (city / str(e.get("id"))).is_dir():
+            r.fail(f"city/index.json lists {e.get('id')!r} but its folder is missing")
+        else:
+            check_city_scope(r, city / e["id"])
+    extra = sorted(p.name for p in city.iterdir() if p.is_dir() and p.name not in {e.get("id") for e in index})
+    if extra:
+        r.warn(f"city/ folders not in index.json: {extra}")
+
+
 # ---------------------------------------------------------------- reporting
 
 
@@ -990,6 +1101,7 @@ def run(web_dir: Path = WEB_DATA, interim_dir: Path = INTERIM, quiet: bool = Fal
         quality_map(r, ctx)
         quality_rivers(r, ctx)
     run_builder_checks(r, web_dir, builder_checks_)
+    check_city_scopes(r, web_dir)
     return r
 
 

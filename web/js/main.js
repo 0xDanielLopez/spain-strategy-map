@@ -19,13 +19,14 @@ import { resourceFilterSig, layerActive, layerError, Z as LAYER_Z } from "./rend
 import { installExtensions } from "./ext/index.js";
 import { initShare } from "./app/share.js";
 import { initHelp } from "./app/help.js";
+import { scopeId, dataBase, setScope, scope, applyScopeChrome, showScopeError, loadScopeIndex, lvl } from "./app/scope.js";
 
 const { drawStatic, drawOverlay, OCEAN_BG } = mapRender;
 
 async function loadJSON(name, optional = false) {
   try {
-    const r = await fetch(`data/${name}.json`);
-    if (!r.ok) throw new Error(`data/${name}.json: HTTP ${r.status}`);
+    const r = await fetch(`${dataBase()}${name}.json`);
+    if (!r.ok) throw new Error(`${dataBase()}${name}.json: HTTP ${r.status}`);
     return await r.json();
   } catch (err) {
     if (optional) return null;
@@ -54,6 +55,9 @@ async function main() {
     loadJSON("world"), loadJSON("cities"), loadJSON("nation"),
     loadJSON("lenses", true), loadJSON("sources", true), loadJSON("resources", true), loadJSON("states", true),
   ]);
+  setScope(world);
+  applyScopeChrome();
+  await loadScopeIndex(); // national map: city-map links in the city panel (data/city/index.json, optional)
   const lensFile = lenses && Array.isArray(lenses.lenses) ? lenses : { vintage: "", groups: [], lenses: [] };
   const w = prepareWorld(world, cities, { resources });
   const state = {
@@ -424,7 +428,8 @@ async function main() {
     }
     const dl = d.l, dr = d.r;
     const x1 = cam.w - dr - (panelOpen && cam.w > 760 ? PANEL_W : 0);
-    return { x0: Math.min(dl, x1 - 100), y0: TOPBAR_H, x1, y1: cam.h };
+    // City maps fill the view: keep their south edge clear of the lens bar and the attribution line.
+    return { x0: Math.min(dl, x1 - 100), y0: TOPBAR_H, x1, y1: scopeId() ? cam.h - 90 : cam.h };
   }
 
   // Fly so that world point (x, y) lands in the middle of the visible area at scale s.
@@ -534,7 +539,7 @@ async function main() {
   const stateName = (idx) => states?.[idx]?.name || w.raw.states[idx]?.name || "State";
 
   function describeCanvas() {
-    const parts = ["Mapa de España en hexágonos", state.lens ? `coloreado con la lente ${state.lens.name}` : "mostrando el terreno"];
+    const parts = [scope() ? `Mapa de ${scope().title || scope().name} en hexágonos` : "Mapa de España en hexágonos", state.lens ? `coloreado con la lente ${state.lens.name}` : "mostrando el terreno"];
     if (state.selectedCity) parts.push(`${state.selectedCity.name} selected`);
     else if (state.selectedState != null) parts.push(`${stateName(state.selectedState)} selected`);
     canvas.setAttribute("aria-label", parts.join(", "));
@@ -671,6 +676,7 @@ async function main() {
   const search = initSearch({
     cities,
     states: w.raw.states.map((s, i) => ({ name: states?.[i]?.name || s.name, abbr: s.abbr, population: states?.[i]?.population })),
+    labels: { state: lvl("state", { cap: true }), county: lvl("county", { cap: true }), states: lvl("state", { many: true }), counties: lvl("county", { many: true }) },
     munis: (w.raw.counties || []).map((c, k) => {
       const cell = w.raw.muni_cell?.[k] ?? -1;
       const st = cell >= 0 ? w.raw.owner[cell] : -1;
@@ -1274,13 +1280,15 @@ async function main() {
   requestAnimationFrame(() => setTimeout(kickEager, 0));
   setTimeout(kickEager, 400);
   // Extensions load after the first frame is on its way; a missing extension folder is fine.
-  installExtensions(app);
+  // A scope has no advisors, city view, weather or live feeds (their data is national); map layers hide themselves.
+  installExtensions(app, scopeId() ? ["./layers/index.js"] : undefined);
 }
 
 main().catch((err) => {
   console.error(err);
   const el = document.getElementById("loading");
   if (!el) return;
+  if (scopeId()) return showScopeError(el);
   el.classList.add("error");
   el.textContent = `No se pudieron cargar los datos del mapa (${err.message}). Ejecuta "uv run python -m pipeline all" y sirve web/ por HTTP.`;
 });

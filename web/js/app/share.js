@@ -1,4 +1,5 @@
 // Share popover: copy a link to the current view, or download a 1600×900 PNG of it with a caption strip.
+import { scopeCredit } from "./scope.js";
 import { drawIcon, hasIcon } from "../icons.js";
 import { icon } from "../ui/icon.js";
 
@@ -169,7 +170,7 @@ export function composeImage(info, { height = IMG_H } = {}) {
   }
   ctx.font = `14px ${SANS}`;
   ctx.fillStyle = "#b9ab88";
-  ctx.fillText(CREDIT, rx, cy + 20);
+  ctx.fillText(scopeCredit() || CREDIT, rx, cy + 20);
   ctx.font = `bold 17px ${SERIF}`;
   ctx.fillStyle = "#c9a45c";
   spaced(ctx, 1);

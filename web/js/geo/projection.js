@@ -1,6 +1,7 @@
 // lon/lat -> map km, an exact port of pipeline/core/geo.py MapProjection (main Albers + Canarias inset).
 // Constants come from web/data/projection.json (pipeline/build/projection.py).
 //   createProjection(doc) -> {project(lon, lat) -> [x, y], hidden(lon, lat) -> bool}
+import { dataBase } from "../app/scope.js";
 const RAD = Math.PI / 180;
 
 function albers(lat1, lat2, lat0, lon0, R) {
@@ -43,7 +44,7 @@ export function createProjection(doc) {
 
 let loaded = null;
 /** Fetch projection.json once and build the projection (rejects if the file is missing). */
-export function loadProjection(url = "data/projection.json") {
+export function loadProjection(url = `${dataBase()}projection.json`) {
   loaded ??= fetch(url).then((r) => {
     if (!r.ok) throw new Error(`projection.json: HTTP ${r.status}`);
     return r.json();

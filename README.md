@@ -85,6 +85,21 @@ uv run python -m pipeline serve     # abre http://127.0.0.1:8765
 `uv run python -m pipeline all --offline` reconstruye con las descargas en caché, sin red.
 `uv run python -m unittest discover -s tests` ejecuta los tests.
 
+## Mapas de ciudad
+
+Además del mapa de España hay una versión por ciudad: el mismo mapa de hexágonos, pero con hexágonos de 0,3 km (Madrid) o de 1,2 km (el área urbana de Madrid) y con distritos o municipios en lugar de comunidades. Se abre con `?scope=madrid` o `?scope=madrid-auf`.
+
+**Los valores son estimaciones.** El INE publica los datos por sección censal, no por hexágono. Reparto los habitantes de cada sección entre sus hexágonos según el suelo construido (clase 50 de ESA WorldCover, vista general de unos 74 m) y calculo cada lente a partir de ese reparto. Un hexágono queda sin dato cuando las secciones que concentran menos del 90 % de sus habitantes no tienen el valor, y donde no hay suelo construido no hay habitantes ni dato. Solo uso agregados por sección, distrito y municipio, nada sobre personas.
+
+Fuentes: INE (seccionado censal 2026, Atlas de distribución de renta de los hogares y Censo anual de población) y ESA WorldCover 10 m 2021 (CC BY 4.0). Las ciudades se definen en `pipeline/scopes.py`: añadir una es añadir una entrada.
+
+```bash
+uv run python -m pipeline city madrid      # o madrid-auf, o all (unos 3 minutos y menos de 3 GB de memoria)
+uv run python -m pipeline check            # incluye las comprobaciones de web/data/city/
+```
+
+Los ficheros salen en `web/data/city/<id>/` y no tocan los del mapa de España. Necesitan en `data/raw/` el seccionado y las tablas del INE (ver `docs/DATA_CONTRACTS.md`, "City scopes").
+
 ## Fuentes de datos y licencias
 
 | Datos | Editor | Licencia | Uso |

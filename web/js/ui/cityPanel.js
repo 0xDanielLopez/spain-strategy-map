@@ -1,6 +1,7 @@
 import { css } from "../color.js";
 import { esc } from "../format.js";
 import { isCapital } from "../world.js";
+import { scope, scopesNow, scopeLinksHtml } from "../app/scope.js";
 import { yieldGrid, amenities, industries, gdpRow, popLine, growthSpan, showPanel, hidePanel } from "./infoPanel.js";
 
 /**
@@ -21,20 +22,26 @@ export function openCityPanel(city, ctx) {
     .join("");
 
   const growth = growthSpan(city, n);
+  // A city map has only the figures it measured: a row whose city value is missing is left out, never "–" or 0.
+  const measured = !scope() || Number.isFinite(city.unemployment) || Number.isFinite(city.income_per_person);
+  const economy = ((measured ? amenities(city, n) : "") + gdpRow(city)).trim();
 
   showPanel({
     kind: "city",
     stripe: col,
     title: city.name,
     titleHtml: `${isCapital(city) ? `<span class="cap" title="Capital del Estado">★</span> ` : ""}${esc(city.name)}`,
-    sub: `${esc(city.full || "")}${states ? `<div class="chips">${states}</div>` : ""}`,
+    sub: `${esc(city.full || "")}${states ? `<div class="chips">${states}</div>` : ""}${scopeLinksHtml(scopesNow(), city.id)}`,
     headExtra: popLine(city, growth),
     sections: [
-      { title: "Rendimientos", html: `<div class="yield-grid">${yieldGrid(nation, city.yields)}</div>` },
-      { title: "Economía", html: amenities(city, n) + gdpRow(city) },
-      { title: "Sectores · dónde trabaja la gente", html: industries(city, nation) },
+      // Sections without data are left out (a city map may carry only population and income).
+      city.yields && { title: "Rendimientos", html: `<div class="yield-grid">${yieldGrid(nation, city.yields)}</div>` },
+      economy && { title: "Economía", html: economy },
+      city.jobs && { title: "Sectores · dónde trabaja la gente", html: industries(city, nation) },
     ],
-    foot: `Fuente: ${esc(nation.vintage)} ${nation.gdp_vintage ? `; PIB: ${esc(nation.gdp_vintage)}` : ""}.
+    foot: scope()
+      ? `Fuente: ${esc(nation.vintage || "")}. Renta: media por persona, no mediana. ${esc(scope().note || "")}`
+      : `Fuente: ${esc(nation.vintage)} ${nation.gdp_vintage ? `; PIB: ${esc(nation.gdp_vintage)}` : ""}.
       Verde ×N = el peso de este sector en el empleo es N veces el de España. Renta: media por persona, no mediana. El PIB de cada área es una imputación a partir del PIB provincial.`,
     onClose: ctx.onClose,
     onPedia: ctx.onPedia,

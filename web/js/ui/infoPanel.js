@@ -2,6 +2,7 @@
 import { compact, dollars, esc, int, money, pct, yieldValue } from "../format.js";
 import { icon, glyph } from "./icon.js";
 import { iconKey } from "../industry.js";
+import { lvl, nationName } from "../app/scope.js";
 
 // Industry → a "district" glyph: SVG icons i-<key> from icons.js; these emoji are only the fallback.
 export const DISTRICT_ICON = {
@@ -24,7 +25,7 @@ export function yieldGrid(nation, yields, ranks = null, rankOf = 0) {
         <div class="ico" style="color:${esc(y.color)}">${glyph(y, 20)}</div>
         <div class="val" style="color:${esc(y.color)}">${yieldValue(y, v)}</div>
         <div class="lbl">${esc(label)}</div>
-        ${r ? `<div class="rank" title="Puesto entre las ${rankOf} comunidades cartografiadas (1 = la mayor)">n.º ${r} de ${rankOf}</div>` : ""}</div>`;
+        ${r ? `<div class="rank" title="Puesto entre las ${rankOf} ${lvl("state", { many: true })} cartografiadas (1 = la mayor)">n.º ${r} de ${rankOf}</div>` : ""}</div>`;
     })
     .join("");
 }
@@ -39,7 +40,7 @@ export function statRow(ic, fallback, label, v, nv, fmt, higherIsGood) {
     const cls = Math.abs(ratio - 1) < 0.03 || higherIsGood == null ? "" : (higherIsGood ? ratio >= 1 : ratio <= 1) ? "good" : "bad";
     // Within 3% of the national value reads as level: no arrow, no colour (the colour uses the same band).
     const arrow = Math.abs(ratio - 1) < 0.03 ? "≈" : ratio > 1 ? "▲" : "▼";
-    cmp = `<span class="cmp ${cls}">${arrow} España ${fmt(nv)}</span>`;
+    cmp = `<span class="cmp ${cls}">${arrow} ${nationName()} ${fmt(nv)}</span>`;
   }
   return `<div class="stat-row"><span class="sl">${icon(ic, fallback, { size: 14 })}${esc(label)}</span><span><b>${Number.isFinite(v) ? fmt(v) : "–"}</b>${cmp}</span></div>`;
 }
@@ -89,7 +90,7 @@ export function growthSpan(o, n = null) {
   const yrs = Array.isArray(o.growth_years) && o.growth_years.length === 2 ? o.growth_years : null;
   const p = (g) => `${g >= 0 ? "+" : "−"}${Math.abs(g * 100).toFixed(1).replace(".", ",")} %`;
   const period = yrs ? `${yrs[0]}–${yrs[1]}` : "los últimos años";
-  const us = Number.isFinite(n?.growth) ? ` (España ${p(n.growth)})` : "";
+  const us = Number.isFinite(n?.growth) ? ` (${nationName()} ${p(n.growth)})` : "";
   const tip = `Variación de población ${period}: ${p(o.growth)}${us}`;
   const cls = o.growth >= 0 ? "good" : "bad";
   return ` · <span class="growth ${cls}" title="${esc(tip)}">${o.growth >= 0 ? "▲" : "▼"} ${Math.abs(o.growth * 100).toFixed(1).replace(".", ",")} %${
@@ -106,13 +107,13 @@ export const popLine = (o, extra = "") =>
 export function showPanel(spec) {
   const panel = panelEl();
   panel.dataset.kind = spec.kind;
-  panel.setAttribute("aria-label", `${spec.kind === "state" ? "Comunidad" : "Ciudad"}: ${spec.title}`);
+  panel.setAttribute("aria-label", `${spec.kind === "state" ? lvl("state", { cap: true }) : "Ciudad"}: ${spec.title}`);
   panel.innerHTML = `
     <div class="sheet-grip" aria-hidden="true"></div>
     <div class="cp-head">
       <div class="stripe" style="background:${spec.stripe}"></div>
       <button class="icon-btn cp-close" aria-label="Cerrar el panel (Esc)" title="Cerrar (Esc)">${icon("close", "✕", { size: 13 })}</button>
-      <div class="cp-kind">${spec.kind === "state" ? "Comunidad" : "Ciudad"}</div>
+      <div class="cp-kind">${spec.kind === "state" ? lvl("state", { cap: true }) : "Ciudad"}</div>
       <h2 class="cp-name">${spec.titleHtml ?? esc(spec.title)}</h2>
       ${spec.sub ? `<div class="cp-full">${spec.sub}</div>` : ""}
       ${spec.headExtra || ""}

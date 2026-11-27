@@ -207,7 +207,7 @@ export function drawStatic(ctx, vp, w, opts) {
 
   // 7. Sea mist around the edges of the known world.
   upTo(Z.FOG);
-  if (opts.edgeFog !== false) drawEdgeFog(ctx, vp, W, H);
+  if (opts.edgeFog !== false) drawEdgeFog(ctx, vp, W, H, 26 * R); // 260 km at the national 10 km hex; scales down for city maps
   lap("fog");
 
   // 8. Screen-space bits: resources, then the big state names.
@@ -294,8 +294,7 @@ export function warmSprites(ctx, vp, w, opts = {}) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
-function drawEdgeFog(ctx, vp, W, H) {
-  const band = 260;
+function drawEdgeFog(ctx, vp, W, H, band = 260) {
   const v = vp;
   if (v.x0 > band && v.y0 > band && v.x1 < W - band && v.y1 < H - band) return;
   // Beyond the map: misty deep ocean (not grey), so tall/portrait screens read as open sea.

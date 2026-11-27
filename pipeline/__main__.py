@@ -7,6 +7,7 @@
                          the upstream builders of the named ones
   check                  validate web/data/*.json and print a data-quality report
   all                    fetch + process + build everything, then check
+  city    <scope id>|all   build the city-scale map(s) into web/data/city/ (pipeline/scopes.py; not part of build/all)
   list                   show sources and builders
   serve                  serve web/ on http://127.0.0.1:8765
   package                build usaciv.zip: the site to upload, with the source code inside
@@ -168,7 +169,7 @@ def cmd_serve(port=8765):
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="pipeline", description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
-    p.add_argument("command", choices=["fetch", "process", "build", "check", "all", "list", "serve", "package"])
+    p.add_argument("command", choices=["fetch", "process", "build", "check", "all", "list", "serve", "package", "city"])
     p.add_argument("names", nargs="*")
     p.add_argument("--force", action="store_true", help="fetch: re-download even if cached; build: rebuild even if up to date")
     p.add_argument("--deps", action="store_true", help="build: also run upstream builders of the named ones")
@@ -194,6 +195,12 @@ def main(argv=None):
         cmd_list()
     elif a.command == "serve":
         cmd_serve(a.port)
+    elif a.command == "city":
+        from .build.city import build_all
+        from .scopes import SCOPES
+
+        ids = list(SCOPES) if a.names in ([], ["all"]) else _pick(a.names, SCOPES, "scope")
+        build_all(ids)
     elif a.command == "package":
         from .package import cmd_package
 

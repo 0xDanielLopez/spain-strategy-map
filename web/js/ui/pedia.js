@@ -3,6 +3,7 @@ import { resolveTables } from "../terrain.js";
 import { esc } from "../format.js";
 import { parseHex, luminance } from "../color.js";
 import { icon, glyph } from "./icon.js";
+import { scope, lvl } from "../app/scope.js";
 
 const COVER_ICON = { forest_deciduous: "l-forest", forest_evergreen: "l-forest", forest_mixed: "l-forest", cropland: "l-farmland", pasture: "l-farmland", urban: "l-developed" };
 // Glyph colour that reads on a resource medallion (dark on light faces such as nuclear yellow or silver).
@@ -28,8 +29,9 @@ export function initPedia(data) {
       <p>Esto es la España real dibujada como un juego de estrategia. Nada es inventado: cada casilla, ciudad y
       número sale de datos públicos, listados en <i>Fuentes</i>.</p>
       <h4>Cómo está construido</h4>
-      <p>España se proyecta (equivalente en área) y se divide en ${data.world.grid.cols}×${data.world.grid.rows}
-      hexágonos de ${data.world.grid.radius * 2} km de vértice a vértice. Cada hexágono pertenece a la comunidad autónoma y al municipio que hay bajo su centro.
+      ${scope() ? `<p><b>${esc(scope().title || scope().name)}.</b> ${esc(scope().note || "")} Los ${lvl("state", { many: true })} son los grandes territorios del mapa y los ${lvl("county", { many: true })} las unidades pequeñas.</p>` : ""}
+      <p>${scope() ? esc(scope().title || scope().name) : "España"} se proyecta (equivalente en área) y se divide en ${data.world.grid.cols}×${data.world.grid.rows}
+      hexágonos de ${(data.world.grid.radius * 2).toLocaleString("es-ES")} km de vértice a vértice. Cada hexágono pertenece a la comunidad autónoma y al municipio que hay bajo su centro.
       El terreno sale de muestras de altitud dentro de cada hexágono.</p>
       <p>Las <b>ciudades</b> son las áreas urbanas del mapa, situadas en su núcleo principal. Sus cifras cubren toda el área urbana, no solo el municipio central.</p>
       <h4>Controles</h4>

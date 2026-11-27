@@ -1,10 +1,11 @@
 // Keyboard & mouse cheat-sheet.
 import { icon } from "../ui/icon.js";
+import { lvl } from "./scope.js";
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "");
 const MOD = isMac ? "⌘" : "Ctrl";
 
-const ROWS = [
+const rowsNow = () => [
   ["Moverse", [
     [["Arrastrar", "←↑→↓", "WASD"], "Desplazar el mapa"],
     [["Rueda", "+", "–"], "Acercar y alejar"],
@@ -14,8 +15,8 @@ const ROWS = [
   ]],
   ["Explorar", [
     [["Clic en ciudad"], "Abrir la pantalla de la ciudad"],
-    [["Clic en tierra"], "Abrir esa comunidad"],
-    [["/", `${MOD} K`], "Buscar comunidades y municipios"],
+    [["Clic en tierra"], `Abrir ${lvl("state") === "comunidad" ? "esa comunidad" : "ese " + lvl("state")}`],
+    [["/", `${MOD} K`], `Buscar ${lvl("state", { many: true })} y ${lvl("county", { many: true })}`],
     [["L", "Shift L"], "Lente siguiente / anterior"],
     [["Leyenda"], "Pasa el ratón o arrastra por la escala para mostrar solo ese rango"],
     [["R"], "Mostrar u ocultar recursos"],
@@ -34,7 +35,7 @@ export function initHelp() {
   card.innerHTML = `
     <button class="icon-btn help-close" data-close aria-label="Cerrar la ayuda">${icon("close", "✕", { size: 13 })}</button>
     <h2 id="help-title">${icon("help", "?", { size: 22 })}<span>Controles</span></h2>
-    <div class="help-cols">${ROWS.map(([title, rows]) => `
+    <div class="help-cols">${rowsNow().map(([title, rows]) => `
       <section><h3>${title}</h3>${rows.map(([keys, what]) => `
         <div class="help-row"><span class="keys">${keys.map((k) => `<kbd>${k}</kbd>`).join("")}</span><span>${what}</span></div>`).join("")}
       </section>`).join("")}</div>

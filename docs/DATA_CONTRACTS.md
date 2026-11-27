@@ -899,3 +899,68 @@ single_bidder, bidders_known, under_15k, under_40k, band_15k, band_40k}}}, "unas
 "organs": [{name, by_year}]}`. Amounts are award amounts without VAT. The single-bidder share uses `bidders_known` as denominator.
 No winners and no titles are read.
 
+
+## Census sections (city-scale maps)
+
+Library `pipeline/sources/ine_sections.py` (not part of the national build; helpers `pipeline/core/shapefile.py`, `pipeline/core/utm.py`). Source: INE, "Seccionado" boundaries 2026 (ETRS89 / UTM 30N shapefile, read from the zip) and the per-section tables ADRH 30824 / 30829 / 30832 and annual Census 65032 / 65031. Reuse requires citing INE.
+
+- `load_sections(cumuns, year=2026)` returns one dict per section: `{cusec, cudis, cumun, nmun, rings}`, `rings` = every part of the polygon as `[(lon, lat), ...]` (outer rings and holes as stored; even-odd point-in-polygon works).
+- `load_section_stats(cumuns)` returns `{vintage, sections, districts, match}`. `sections[cusec]` has `pop`, `foreign`, `born_abroad` (Census 2026), and `income`, `adrh_pop`, `age`, `under18_pct`, `over65_pct`, `household_size`, `single_households_pct`, `poverty60_pct` (ADRH, latest year, Sexo Total). `districts[cudis]` has the ADRH fields. A missing value or statistical secrecy is `None`, never 0.
+- Section codes change between years and there is no crosswalk: a 2026 section without a row in a table is `None`. `match[table]` = `{sections_in_map, with_value, rows_without_polygon, pop_share_matched}` (share of the 2026 census population living in sections that got a value).
+- Results are cached per municipality in `data/interim/ine_sections/` (git-ignored); each table is streamed once for all pending municipalities. CLI: `python -m pipeline.sources.ine_sections stats <cumun> ...`.
+- Only aggregates per section / district / municipality; nothing about persons.
+- The `IneSections` source class is not auto-registered (the national `sources.json` would gain an entry); register by setting `info = INFO` on the class.
+
+### PLACSP (interim only)
+
+`data/interim/placsp.json` (source `placsp`, no builder yet): public procurement of town halls awarded in 2025, from the
+PLACSP yearly ZIPs (perfiles del contratante and aggregated regional platforms, both without minor contracts), streamed
+without extracting. `{"vintage": "2025", "downloaded", "municipalities": {ine: {tenders, lots, amount_eur,
+lots_with_offers, lots_single_bid, lots_open, by_type: {works|services|supplies|concessions|other: {lots, amount_eur}},
+top: [<=10 {title, cpv, amount_eur, date, procedure, offers, winner, winner_nif, link, body}]}}, "stats": {...}, "note"}`.
+Town hall = DIR3 `L01` + INE code (5 digits) + 1 character. Awarded = TenderResultCode 2, 8 or 9 with AwardDate in 2025;
+open = ProcedureCode 1 or 9. Amounts are without VAT. Only a winner with a valid legal-entity NIF (format and control
+character) and no personal title in its name is published in `top`; every other winner is quarantined: it counts in the
+totals and its name and id are never stored. Any builder must show only municipality totals plus `top`, and must pass
+`check.privacy_violations`. `PLACSP_SAMPLE=N` processes every k-th member of each ZIP (a test run, not for publishing).
+
+## City scopes (the same map at city scale)
+
+`python -m pipeline city <scope id>|all` (`pipeline/build/city.py`, scopes defined as data in `pipeline/scopes.py`) writes
+`web/data/city/<scope id>/{world,cities,nation,lenses,states,sources,projection}.json` and `web/data/city/index.json`. It is NOT
+part of `pipeline build` / `all` (the module has no `REQUIRES` / `PRODUCES` / `build()`), so the national files never change.
+The page opens a scope with `?scope=<id>`. Every file has the same contract as its national namesake; differences:
+
+* **`index.json`**: `{"scopes": [{"id", "name", "kind": "municipality"|"urban_area", "city": "ES001F", "hex_km", "population", "title"}]}`.
+* **Scopes**: `madrid` (municipality 28079, hex radius 0.3 km, states = 21 districts, CUDIS) and `madrid-auf` (urban area ES001F,
+  about 240 municipalities, hex radius 1.2 km, states = municipalities). `counties` are census sections (CUSEC, 10 digits) in both.
+* **`world.json`**: the national keys, plus `scope` = `{id, kind, name, title, hex_km, levels: {state: {one, many}, county: {one, many}},
+  note, city, population (INE, sum of the sections), hex_population (sum of the hexes), sections, census_year, adrh_year}` and `pop`
+  (people allocated to each hex, 2 decimals; `null` outside the scope). `insets` is `[]`, there is no Canarias frame. `owner`: index
+  of the state (district or municipality) with most lattice points; `-1` water (only a lake hex outside the scope), `-2` land outside the
+  scope (drawn as foreign land). `county` = the section with most lattice points in the hex. `muni_cell[k]` = the hex that holds most of
+  section `k`'s allocated people (`-1` if none). `states` = `{fips: CUDIS|CUMUN, abbr, name}` sorted by code; `counties` =
+  `{geoid: CUSEC, name: "<state name>, sección NNNNN", province: <state fips>}`. `elev` and `elev_max` are 0 and `relief` is 0 (flat)
+  everywhere: there is no elevation source at this scale yet (said in `tables.notes`). `cover` and `pct` come from the hex's lattice
+  points, including those just outside the scope.
+* **Estimates**: a section's people are spread over its hexes in proportion to its built-up lattice points (ESA WorldCover class 50;
+  all its points when it has fewer than 3). Nothing here is an INE count per hexagon. Conservation: the sum of `pop` equals the sum of
+  the sections' census population (check fails above 0.1 %).
+* **`lenses.json`**: ids `density`, `income`, `poverty`, `age`, `elderly`, `under18`, `household`, `single_households`, `foreign`,
+  `born_abroad`, `forest`, `developed`; sources `ine_adrh`, `ine_census`, `worldcover`. An INE lens is `null` on a hex when the
+  sections holding under 90 % of its allocated people lack the value, and on hexes without built-up land (no people). Hexes with no
+  people therefore have no data for INE lenses (parks, farmland); `check` measures INE lenses against the populated land hexes.
+* **`cities.json`** = banners: districts (scope `madrid`) or municipalities of 50,000 inhabitants or more (`madrid-auf`).
+  `id` = CUDIS / CUMUN, `states` = `[index into world.states]`, `counties` = its CUSEC codes, `footprint` = its hexes, `cell` = the
+  owned hex nearest to the population-weighted centre (unique). `ranks` = `{"population": rank}`; `peers` = `[]`. Fields of the
+  national contract without a source here (`employed`, `jobs`, `yields`, `gdp`, `growth`, `pop_series`, ...) are `null`.
+* **`nation.json`**: `nation.name` = the scope title, `population` (INE), `income_per_person`, `land`; `yields` is `[]` and `industries`
+  `{}` (as in F0); the rest `null`. **`states.json`**: one entry per state in `world.states` order with `population` and
+  `income_per_person`; the rest `null`. **`sources.json`**: only `ine_sections`, `ine_adrh`, `ine_census` and `worldcover`.
+* **`projection.json`**: the national format with `main_albers = [lat0 - 0.5, lat0 + 0.5, lat0, lon0]` centred on the scope and
+  `insets: []`; `web/js/geo/projection.js` works unchanged.
+* **Land cover**: `pipeline/sources/worldcover.py` `read_window(bbox)` reads the ~74 m overview (level 3 of the COG pyramid) limited to
+  the TIFF tiles that touch the bbox (HTTP Range, cached in `data/raw/worldcover/city/`). If that fails the build falls back to the
+  smallest overview (~600 m) and `sources.json` says so.
+* **Checks** (`pipeline/check.py`, only when `web/data/city/` exists): files and keys, array lengths = grid size, index ranges,
+  population conservation, lens coverage (WARN below 60 %, FAIL below 30 %), files under 3 MB, and names that are plain place names.

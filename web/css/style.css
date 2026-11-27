@@ -551,3 +551,6 @@ body.panel-open #lens-area { right: calc(394px + var(--dock-right, 0px)); }
   .yr-total > b { font-size: 30px; }
   .yr-row { padding: 7px 8px; }
 }
+
+/* City maps: a long scope title ("Área urbana de Madrid") must not push the top-bar buttons off screen. */
+body.scope-map .brand-text { max-width: 185px; overflow: hidden; text-overflow: ellipsis; }

@@ -1,10 +1,13 @@
 """ESA WorldCover v200 (2021), read from the smallest overview of each 3x3 degree Cloud Optimized GeoTIFF."""
 
 import math
+import time
 import urllib.error
+import urllib.request
 import struct
 import zlib
 
+from ..core.paths import RAW
 from ..core.source import Source, SourceInfo
 
 URL = "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_{tile}_Map.tif"
@@ -157,3 +160,150 @@ class WorldCover(Source):
             "classes": CLASSES,
             "tiles_note": "rows[0] is the north edge (lat0 + 3), column 0 the west edge (lon0)",
         }
+
+
+# ---------------------------------------------------------------- finer overview for city maps
+# City maps read the overview whose pixels are at most ~80 m (level 3 of the COG pyramid: 4500 px per 3 degrees),
+# but only the 1024 px TIFF tiles that touch the scope's bounding box, with HTTP Range requests. The bytes are cached
+# under data/raw/worldcover/city/. This does not touch what WorldCover.fetch() and process() read or write.
+
+CITY_UA = "spain-strategy-map/1.0 (open-source map project)"
+CITY_CACHE = RAW / "worldcover" / "city"
+MAX_PIXEL_M = 80.0
+
+
+def pick_overview(ifds: list[dict], max_pixel_m: float = MAX_PIXEL_M) -> int:
+    """Index of the coarsest IFD whose pixels are at most `max_pixel_m` wide (3 degrees = 333.9 km along a meridian)."""
+    ok = [i for i, d in enumerate(ifds) if 333_960.0 / d[256][0] <= max_pixel_m]
+    if not ok:
+        raise ValueError("no overview fine enough")
+    return max(ok, key=lambda i: -ifds[i][256][0])
+
+
+def tiles_for_bbox(lon_min: float, lat_min: float, lon_max: float, lat_max: float) -> list[tuple[str, int, int]]:
+    """3x3 degree WorldCover tiles (name, lat0, lon0) touched by a lon/lat bbox."""
+    out = []
+    for lat0 in range(math.floor(lat_min / 3) * 3, math.floor(lat_max / 3) * 3 + 1, 3):
+        for lon0 in range(math.floor(lon_min / 3) * 3, math.floor(lon_max / 3) * 3 + 1, 3):
+            out.append((tile_name(lat0, lon0), lat0, lon0))
+    return out
+
+
+def _cached_range(url: str, name: str, start: int, end: int) -> bytes:
+    """Bytes start..end-1 of `url`, cached as data/raw/worldcover/city/<name> (written atomically)."""
+    from ..core import fetch
+
+    path = CITY_CACHE / name
+    if path.exists() and path.stat().st_size == end - start:
+        return path.read_bytes()
+    if fetch.OFFLINE:
+        raise fetch.OfflineError(f"{name} is not cached and --offline is set")
+    last = None
+    for attempt in range(4):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": CITY_UA, "Range": f"bytes={start}-{end - 1}"})
+            with urllib.request.urlopen(req, timeout=120) as r:
+                data = r.read()
+            if len(data) != end - start:
+                raise OSError(f"short read {len(data)} of {end - start}")
+            CITY_CACHE.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(f".{name}.tmp")
+            tmp.write_bytes(data)
+            tmp.replace(path)
+            return data
+        except (OSError, urllib.error.URLError) as exc:
+            if isinstance(exc, urllib.error.HTTPError) and exc.code == 404:
+                raise
+            last = exc
+            time.sleep(1.5 * (attempt + 1))
+    raise last
+
+
+class CoverWindow:
+    """WorldCover class codes (ints, 0 = no data) of a lon/lat window at ~60-80 m. `at(lon, lat)` -> code."""
+
+    def __init__(self, level: int, pixel_m: float):
+        self.level, self.pixel_m = level, pixel_m
+        self.tiles: dict[str, dict] = {}  # tile name -> {lat0, lon0, w, h, tw, th, across, px: {k: bytes}}
+        self.bytes_read = 0
+        self.tiff_tiles = 0
+
+    def at(self, lon: float, lat: float) -> int:
+        for t in self.tiles.values():
+            dx, dy = lon - t["lon0"], t["lat0"] + 3 - lat
+            if 0 <= dx < 3 and 0 <= dy < 3:
+                x, y = int(dx * t["w"] / 3), int(dy * t["h"] / 3)
+                px = t["px"].get((y // t["th"]) * t["across"] + x // t["tw"])
+                return px[(y % t["th"]) * t["tw"] + x % t["tw"]] if px else 0
+        return 0
+
+
+def read_window(lon_min: float, lat_min: float, lon_max: float, lat_max: float, max_pixel_m: float = MAX_PIXEL_M) -> CoverWindow:
+    """Fetch (HTTP Range, cached) and decode the TIFF tiles of a ~60-80 m overview that touch the bbox.
+    Raises if a needed tile cannot be read; callers fall back to `coarse_window()`."""
+    win = None
+    for tile, lat0, lon0 in tiles_for_bbox(lon_min, lat_min, lon_max, lat_max):
+        if tile in NO_TILE:
+            continue
+        url = URL.format(tile=tile)
+        head = HEAD_BYTES
+        while True:
+            try:
+                ifds = parse_ifds(_cached_range(url, f"{tile}.head.bin", 0, head))
+                break
+            except (IndexError, struct.error):
+                head *= 8
+                if head > 8 * HEAD_BYTES * 8:
+                    raise
+            except urllib.error.HTTPError as exc:
+                if exc.code != 404:
+                    raise
+                ifds = None
+                break
+        if ifds is None:
+            continue  # no tile published (open sea)
+        li = pick_overview(ifds)
+        ifd = ifds[li]
+        w, h, tw, th = ifd[256][0], ifd[257][0], ifd[322][0], ifd[323][0]
+        if ifd.get(259, (1,))[0] != 8 or ifd.get(317, (1,))[0] != 1:
+            raise ValueError("unsupported compression or predictor")
+        win = win or CoverWindow(li, 333_960.0 / w)
+        across = -(-w // tw)
+        x0, x1 = max(0, int((lon_min - lon0) * w / 3)), min(w - 1, int((lon_max - lon0) * w / 3))
+        y0, y1 = max(0, int((lat0 + 3 - lat_max) * h / 3)), min(h - 1, int((lat0 + 3 - lat_min) * h / 3))
+        px = {}
+        if x1 >= x0 and y1 >= y0 and lon_min < lon0 + 3 and lon_max >= lon0 and lat_min < lat0 + 3 and lat_max >= lat0:
+            for ty in range(y0 // th, y1 // th + 1):
+                for tx in range(x0 // tw, x1 // tw + 1):
+                    k = ty * across + tx
+                    o, n = ifd[324][k], ifd[325][k]
+                    raw = _cached_range(url, f"{tile}.L{li}.{k}.bin", o, o + n)
+                    win.bytes_read += n
+                    win.tiff_tiles += 1
+                    px[k] = zlib.decompress(raw)
+        win.tiles[tile] = {"lat0": lat0, "lon0": lon0, "w": w, "h": h, "tw": tw, "th": th, "across": across, "px": px}
+    if win is None:
+        raise ValueError("no WorldCover tile for the bbox")
+    return win
+
+
+class _CoarseWindow:
+    """Fallback: the smallest overview (~600 m pixels) that WorldCover.process() already wrote to the interim."""
+
+    level, pixel_m, bytes_read, tiff_tiles = -1, 600.0, 0, 0
+
+    def __init__(self, doc: dict):
+        self.tiles, self.legend = doc["tiles"], doc["legend"]
+
+    def at(self, lon: float, lat: float) -> int:
+        for t in self.tiles.values():
+            dx, dy = lon - t["lon0"], t["lat0"] + 3 - lat
+            if 0 <= dx < 3 and 0 <= dy < 3:
+                return self.legend.get(t["rows"][min(t["h"] - 1, int(dy * t["h"] / 3))][min(t["w"] - 1, int(dx * t["w"] / 3))], 0)
+        return 0
+
+
+def coarse_window():
+    from ..core.store import load_interim
+
+    return _CoarseWindow(load_interim("worldcover"))

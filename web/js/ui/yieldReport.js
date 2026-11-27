@@ -8,6 +8,7 @@ import { hasIcon } from "../icons.js";
 import { icon, glyph } from "./icon.js";
 import { DISTRICT_ICON } from "./infoPanel.js";
 import { iconKey } from "../industry.js";
+import { lvl, nationName } from "../app/scope.js";
 
 export const METRO_MIN = 250000; // metros in growth / specialisation / per-person rankings
 export const BIG_METRO_MIN = 500000; // metros in the unemployment rankings
@@ -120,13 +121,13 @@ function stateScope(n, st) {
   const hasDC = abbrs.has("DC");
   const sum = st.reduce((a, r) => a + (fin(r.o.population) ? r.o.population : 0), 0);
   const gap = fin(n.population) && n.population > 0 ? (n.population - sum) / n.population : 0;
-  const label = "Comunidades";
+  const label = lvl("state", { many: true, cap: true });
   if (!st.length || gap < 0.001) return { label, note: "" };
   const missing = [].filter(([a]) => !abbrs.has(a)).map(([, name]) => name);
   const outside = missing.length ? missing.join(" y ") : `${compact(n.population - sum)} residentes`;
-  const what = `${st.length - (hasDC ? 1 : 0)} comunidades del mapa`;
+  const what = `${st.length - (hasDC ? 1 : 0)} ${lvl("state", { many: true })} del mapa`;
   return {
-    label, inMap: "Comunidades del mapa",
+    label, inMap: `${lvl("state", { many: true, cap: true })} del mapa`,
     note: `Puestos de ${what}; ${outside} ${missing.length > 1 ? "están" : "está"} en el total nacional pero sin puesto.`,
   };
 }
@@ -185,7 +186,7 @@ function reportPopulation(rep, n, st, metros) {
     label: `${prefix}${x.r.name}`, sub: x.r.kind === "city" ? x.r.sub : "", value: x.v, text: signedPct(x.v), tone: x.v >= 0 ? "good" : "bad",
   });
   const groups = [];
-  if (fin(n.growth)) groups.push({ rows: [{ label: "España", value: n.growth, text: signedPct(n.growth), tone: n.growth >= 0 ? "good" : "bad", strong: true }] });
+  if (fin(n.growth)) groups.push({ rows: [{ label: nationName(), value: n.growth, text: signedPct(n.growth), tone: n.growth >= 0 ? "good" : "bad", strong: true }] });
   const extremes = (list, what) => {
     if (list.length < 2) return;
     const k = Math.min(3, Math.floor(list.length / 2));
@@ -216,7 +217,7 @@ function reportUnemployment(rep, n, st, metros) {
   const row = (label, x) => ({ label: `${label}: ${x.r.name}`, sub: x.r.kind === "city" ? x.r.sub : "", value: x.v, text: pct(x.v), tone: tone(x.v) });
   const spread = (list) => (list.length >= 3 ? [row("Más alto", list[0]), row("Mediana", list[Math.floor(list.length / 2)]), row("Más bajo", list.at(-1))] : []);
   const groups = [];
-  if (fin(n.unemployment)) groups.push({ rows: [{ label: "España", value: n.unemployment, text: pct(n.unemployment), strong: true }] });
+  if (fin(n.unemployment)) groups.push({ rows: [{ label: nationName(), value: n.unemployment, text: pct(n.unemployment), strong: true }] });
   const sRows = spread(ss), mRows = spread(sorted(metros, u, BIG_METRO_MIN));
   if (sRows.length) groups.push({ title: rep.scope.label, rows: sRows });
   if (mRows.length) groups.push({ title: `Grandes áreas urbanas (${compact(BIG_METRO_MIN)}+)`, rows: mRows });

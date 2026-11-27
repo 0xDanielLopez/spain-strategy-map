@@ -15,7 +15,8 @@ export function initSearch(opts) {
   if (!input || !box) return { focus() {}, close() {}, get isOpen() { return false; } };
   // The full placeholder only fits the wide search box; narrower ones say just "Search".
   const narrow = matchMedia("(max-width: 1120px)");
-  const setPlaceholder = () => (input.placeholder = narrow.matches ? "Buscar" : "Buscar ciudades, comunidades y municipios");
+  const L = opts.labels || { state: "Comunidad", county: "Municipio", states: "comunidades", counties: "municipios" };
+  const setPlaceholder = () => (input.placeholder = narrow.matches ? "Buscar" : `Buscar ciudades, ${L.states} y ${L.counties}`);
   setPlaceholder();
   narrow.addEventListener?.("change", setPlaceholder);
 
@@ -27,13 +28,13 @@ export function initSearch(opts) {
   (opts.states || []).forEach((s, index) => {
     if (!s) return;
     entries.push({ kind: "state", index, name: s.name, n: norm(s.name), full: norm(s.abbr), abbr: (s.abbr || "").toLowerCase(),
-      pop: s.population || 0, sub: "Comunidad", label: s.name });
+      pop: s.population || 0, sub: L.state, label: s.name });
   });
 
   for (const m of opts.munis || []) {
     if (!m || !(m.cell >= 0)) continue; // a municipality with no hex cannot be flown to
     entries.push({ kind: "muni", cell: m.cell, name: m.name, n: norm(m.name), full: norm(m.ccaa), pop: 0,
-      sub: `Municipio · ${m.ccaa}`, label: m.name });
+      sub: `${L.county}${m.ccaa ? " · " + m.ccaa : ""}`, label: m.name });
   }
 
   let results = [];
@@ -71,7 +72,7 @@ export function initSearch(opts) {
 
   function render() {
     if (!results.length) {
-      box.innerHTML = input.value.trim() ? `<div class="sr-empty">Ninguna ciudad, comunidad ni municipio coincide con “${esc(input.value.trim())}”</div>` : "";
+      box.innerHTML = input.value.trim() ? `<div class="sr-empty">Ninguna ciudad, ${L.state.toLowerCase()} ni ${L.county.toLowerCase()} coincide con “${esc(input.value.trim())}”</div>` : "";
       box.hidden = !input.value.trim();
       input.setAttribute("aria-expanded", String(!box.hidden));
       input.removeAttribute("aria-activedescendant");

@@ -24,6 +24,7 @@ import { iconKey } from "../industry.js";
 import { compact, popShort } from "../ext/cityView/fmt.js"; // format.js plus a 1000K → 1.0M roll-over fix
 import { isCapital } from "../world.js";
 import { cityIsDot } from "./art/city.js";
+import { scope } from "../app/scope.js";
 
 const SERIF = '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif';
 const SANS = "-apple-system, system-ui, sans-serif";
@@ -150,7 +151,7 @@ function measure(ctx, city, yields, nation, L) {
   const chevW = growth == null ? 0 : L.chev + 3;
   const capW = Math.ceil(Math.max(L.capMin, popW + chevW + 14));
   ctx.font = L.yieldFont;
-  const parts = (yields || []).map((yd) => {
+  const parts = (city.yields || !scope() ? yields || [] : []).map((yd) => {
     const t = compact(city.yields?.[yd.key]);
     return { yd, t, w: ctx.measureText(t).width };
   });
