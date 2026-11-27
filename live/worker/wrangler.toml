@@ -1,0 +1,7 @@
+name = "spain-strategy-map-live"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGINS = "https://0xdaniellopez.github.io,http://127.0.0.1:8799,http://localhost:8799"

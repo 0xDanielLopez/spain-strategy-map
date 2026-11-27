@@ -1,0 +1,366 @@
+[
+ {
+  "ac": [
+   {
+    "flight": "VKG1455 ",
+    "t": "A321",
+    "alt_baro": 36000,
+    "lat": 41.010147,
+    "lon": -8.964032,
+    "gs": 463.6,
+    "track": 17.97,
+    "hex": "dummy00",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "EXS39E  ",
+    "t": "A21N",
+    "alt_baro": 35000,
+    "lat": 40.431317,
+    "lon": -8.860973,
+    "gs": 421.0,
+    "track": 221.15,
+    "hex": "dummy01",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "SWR2GX  ",
+    "t": "A20N",
+    "alt_baro": 22425,
+    "lat": 39.107418,
+    "lon": -8.781677,
+    "gs": 413.8,
+    "track": 55.73,
+    "hex": "dummy02",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "CFG1ML  ",
+    "t": "A20N",
+    "alt_baro": 38000,
+    "lat": 41.548553,
+    "lon": -8.745804,
+    "gs": 461.6,
+    "track": 20.28,
+    "hex": "dummy03",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "RYR2AJ  ",
+    "t": "B38M",
+    "alt_baro": 5525,
+    "lat": 41.558716,
+    "lon": -8.568712,
+    "gs": 262.0,
+    "track": 230.11,
+    "hex": "dummy04",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "EXS1DL  ",
+    "alt_baro": 38000,
+    "lat": 41.881027,
+    "lon": -8.566465,
+    "gs": 476.2,
+    "track": 29.85,
+    "hex": "dummy05",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "TVF79HQ ",
+    "t": "A20N",
+    "alt_baro": 30275,
+    "lat": 39.394598,
+    "lon": -8.54895,
+    "gs": 445.3,
+    "track": 39.62,
+    "hex": "dummy06",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "BTI4PX  ",
+    "t": "BCS3",
+    "alt_baro": 36000,
+    "lat": 39.036255,
+    "lon": -8.495656,
+    "gs": 456.7,
+    "track": 22.8,
+    "hex": "dummy07",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "TAP763  ",
+    "t": "A21N",
+    "alt_baro": 25825,
+    "lat": 39.943263,
+    "lon": -8.494929,
+    "gs": 444.4,
+    "track": 184.52,
+    "hex": "dummy08",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "EZY42PM ",
+    "t": "A20N",
+    "alt_baro": 37025,
+    "lat": 38.688261,
+    "lon": -8.408508,
+    "gs": 437.1,
+    "track": 196.07,
+    "hex": "dummy09",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "EZY92BQ ",
+    "t": "A319",
+    "alt_baro": 38025,
+    "lat": 42.291172,
+    "lon": -8.361234,
+    "gs": 460.7,
+    "track": 22.06,
+    "hex": "dummy10",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "EXS4NG  ",
+    "t": "B738",
+    "alt_baro": 38000,
+    "lat": 39.885259,
+    "lon": -8.343384,
+    "gs": 436.0,
+    "track": 354.47,
+    "hex": "dummy11",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "RYR27GR ",
+    "t": "B38M",
+    "alt_baro": 37000,
+    "lat": 38.902359,
+    "lon": -8.321188,
+    "gs": 441.8,
+    "track": 196.3,
+    "hex": "dummy12",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "RYR61FX ",
+    "t": "B738",
+    "alt_baro": 36000,
+    "lat": 42.381363,
+    "lon": -8.312655,
+    "gs": 467.6,
+    "track": 21.85,
+    "hex": "dummy13",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "VKG1455 ",
+    "t": "A321",
+    "alt_baro": 36000,
+    "lat": 41.010147,
+    "lon": -8.964032,
+    "gs": 463.6,
+    "track": 17.97,
+    "hex": "dummy00",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "IBE123  ",
+    "t": "A321",
+    "alt_baro": "ground",
+    "lat": 40.5,
+    "lon": -3.5,
+    "gs": 463.6,
+    "track": 17.97,
+    "hex": "dummyG1",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "RCH456  ",
+    "t": "A321",
+    "alt_baro": 36000,
+    "lat": 40.0,
+    "lon": -3.0,
+    "gs": 463.6,
+    "track": 17.97,
+    "hex": "dummyM1",
+    "r": "DUMMY-REG",
+    "dbFlags": 1
+   },
+   {
+    "flight": "ECMXY   ",
+    "t": "A321",
+    "alt_baro": 36000,
+    "lat": 40.1,
+    "lon": -3.1,
+    "gs": 463.6,
+    "track": 17.97,
+    "hex": "dummyR1",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "RYR999  ",
+    "t": "A321",
+    "alt_baro": 36000,
+    "lat": 45.5,
+    "lon": -3.1,
+    "gs": 463.6,
+    "track": 17.97,
+    "hex": "dummyX1",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "        ",
+    "t": "A321",
+    "alt_baro": 36000,
+    "lat": 40.2,
+    "lon": -3.2,
+    "gs": 463.6,
+    "track": 17.97,
+    "hex": "dummyN1",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "VLG77   ",
+    "t": "A321",
+    "alt_baro": 8000,
+    "lat": 40.3,
+    "lon": -3.3,
+    "gs": 463.6,
+    "track": 17.97,
+    "hex": "dummyN2",
+    "r": "DUMMY-REG"
+   }
+  ]
+ },
+ {
+  "ac": [
+   {
+    "flight": "TAP1036 ",
+    "t": "E195",
+    "alt_baro": 30625,
+    "lat": 41.190125,
+    "lon": -0.7276,
+    "gs": 454.1,
+    "track": 83.3,
+    "hex": "dummy14",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "RYR778  ",
+    "t": "B738",
+    "alt_baro": 31000,
+    "lat": 42.390289,
+    "lon": -0.654123,
+    "gs": 477.1,
+    "track": 201.13,
+    "hex": "dummy15",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "AEA76ML ",
+    "t": "B789",
+    "alt_baro": 24000,
+    "lat": 41.314819,
+    "lon": -0.514038,
+    "gs": 494.5,
+    "track": 80.69,
+    "hex": "dummy16",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "RYR674Z ",
+    "t": "B738",
+    "alt_baro": 29550,
+    "lat": 40.063833,
+    "lon": -0.258865,
+    "gs": 451.8,
+    "track": 196.59,
+    "hex": "dummy17",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "DLH85N  ",
+    "t": "A20N",
+    "alt_baro": 37000,
+    "lat": 42.941666,
+    "lon": -0.223814,
+    "gs": 449.3,
+    "track": 228.79,
+    "hex": "dummy18",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "EJU36KL ",
+    "t": "A320",
+    "alt_baro": 38025,
+    "lat": 42.85675,
+    "lon": -0.183127,
+    "gs": 448.6,
+    "track": 57.66,
+    "hex": "dummy19",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "VKG1455 ",
+    "t": "A321",
+    "alt_baro": 36000,
+    "lat": 41.010147,
+    "lon": -8.964032,
+    "gs": 463.6,
+    "track": 17.97,
+    "hex": "dummy00",
+    "r": "DUMMY-REG"
+   }
+  ]
+ },
+ {
+  "ac": [
+   {
+    "flight": "TUI7PD  ",
+    "t": "B38M",
+    "alt_baro": 36025,
+    "lat": 26.256533,
+    "lon": -16.989353,
+    "gs": 488.4,
+    "track": 25.46,
+    "hex": "dummy20",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "TRA5782 ",
+    "t": "A21N",
+    "alt_baro": 38000,
+    "lat": 29.819366,
+    "lon": -16.653847,
+    "gs": 463.6,
+    "track": 18.36,
+    "hex": "dummy21",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "EXS3ND  ",
+    "t": "A21N",
+    "alt_baro": 30075,
+    "lat": 29.239135,
+    "lon": -16.232246,
+    "gs": 437.3,
+    "track": 4.46,
+    "hex": "dummy22",
+    "r": "DUMMY-REG"
+   },
+   {
+    "flight": "CFG6WL  ",
+    "t": "A20N",
+    "alt_baro": 24400,
+    "lat": 28.864389,
+    "lon": -16.170475,
+    "gs": 399.5,
+    "track": 2.73,
+    "hex": "dummy23",
+    "r": "DUMMY-REG"
+   }
+  ]
+ }
+]

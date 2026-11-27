@@ -808,3 +808,30 @@ Same shapes as the US sections above, with these changes (built by `pipeline/bui
   national parks. `metrics` is empty (no open visitor figures). Sites with no Spanish land cell within 2 hexes are left
   out and counted in the build log.
 * Every file has `attribution` [{data, source, license}].
+
+## Live layers (trains and flights)
+
+Two optional map layers ("Trenes en directo", "Vuelos en directo", off by default; `web/js/ext/live/`). The feeds have
+no CORS headers, so a Cloudflare Worker relays them. The relay URL is `LIVE_URL` in `web/js/ext/live/config.js`;
+`localStorage["live_url"]` overrides it (tests). The page polls `/trains` every 20 s and `/flights` every 30 s only
+while the layer is on and the tab is visible, one request at a time, and keeps the last data on error.
+
+* `GET /trains` -> `{"updated": ISO string, "source": "Renfe (CC BY 4.0)", "stale": bool, "trains": [{"id": string,
+  "net": "cercanias"|"ld", "lat": number, "lon": number, "trip": string|null, "label": string|null,
+  "delay": seconds int|null, "status": string|null}]}`. Delay colour: <= 60 s green, 1-5 min amber, > 5 min red,
+  `null` grey (never shown as 0).
+* `GET /flights` -> `{"updated": ISO string, "source": "adsb.lol (ODbL 1.0)", "stale": bool, "flights": [{"id": callsign,
+  "type": ICAO type|null, "lat": number, "lon": number, "alt_ft": int|null (null on the ground), "gs_kt": number|null,
+  "track": degrees|null}]}`. Only airline callsigns (3 letters + digits); the page drops anything else and does not
+  draw aircraft on the ground.
+* Visible attribution: "Trenes: Renfe (CC BY 4.0) · Vuelos: adsb.lol (ODbL)".
+
+### projection.json
+
+Built by `pipeline/build/projection.py` (REQUIRES `_world`). Every constant `web/js/geo/projection.js` needs to
+reproduce `MapProjection` (lon/lat -> map km, Canarias inset): `r_earth_km`, `min_x`, `max_y`, `margin` (the `_world`
+projection), `main_albers` `[lat1, lat2, lat0, lon0]`, and `insets` `[{name, box [lon0, lat0, lon1, lat1],
+albers [lat1, lat2, lat0, lon0], frame [x0, y0, x1, y1] (main-Albers km, y up), tx, ty}]`. JS: `createProjection(doc)`
+returns `{project(lon, lat) -> [x, y], hidden(lon, lat) -> bool}`; `hidden` is true for a mainland point that falls under
+an inset frame and for an inset-region point outside its frame. `tests/test_projection_js.py` compares both sides
+(max error 0.01 km).

@@ -5,7 +5,7 @@
 // layers/: static map layers (roads, rail, ports, forts, wonders, trade routes) and their toggles.
 // cityView (Vista de ciudad) and advisors (Consejeros) are installed here; the advisors extension gates its own
 // individual advisors.
-const MODULES = ["./cityView/index.js", "./advisors/index.js", "./layers/index.js"];
+const MODULES = ["./cityView/index.js", "./advisors/index.js", "./layers/index.js", "./live/index.js"];
 
 export async function installExtensions(app, list = MODULES) {
   const loads = list.map((spec) => import(spec).then((m) => ({ m }), (err) => ({ err })));
