@@ -85,7 +85,7 @@
 .cv-tabs {
   position: sticky; top: 0; z-index: 3; display: flex; gap: 2px; padding: 6px 10px;
   background: linear-gradient(180deg, #1b2939, #142030); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
-  box-shadow: 0 4px 10px rgba(0,0,0,.35); overflow-x: auto; scrollbar-width: none;
+  box-shadow: 0 4px 10px rgba(0,0,0,.35); flex-wrap: wrap; overflow-x: auto; scrollbar-width: none;
 }
 .cv-tabs::-webkit-scrollbar { display: none; }
 .cv-tabs button {

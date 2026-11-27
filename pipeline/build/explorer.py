@@ -44,9 +44,9 @@ COLORS = {
 BADGE = {
     "a": "Ciudad agraria", "b": "Ciudad minera", "c": "Ciudad industrial", "d": "Ciudad energética",
     "e": "Ciudad de servicios ambientales", "f": "Ciudad de la construcción", "g": "Ciudad comercial",
-    "h": "Nodo logístico", "i": "Ciudad turística", "j": "Ciudad digital", "k": "Ciudad financiera",
+    "h": "Nodo logístico", "i": "Ciudad de la hostelería", "j": "Ciudad digital", "k": "Ciudad financiera",
     "l": "Ciudad inmobiliaria", "m": "Ciudad de servicios profesionales", "n": "Ciudad de servicios a empresas",
-    "o": "Ciudad administrativa", "p": "Ciudad educativa", "q": "Ciudad sanitaria", "r": "Ciudad cultural",
+    "o": "Ciudad administrativa", "p": "Ciudad educativa", "q": "Ciudad sanitaria", "r": "Ciudad del ocio y las artes",
     "s": "Ciudad de servicios personales",
 }
 DESCRIPTION = {

@@ -98,6 +98,10 @@ export function createHashState(opts) {
     return sig(parseHash(hash), ex);
   };
   let entrySig = hashSig(location.hash);
+  // Extension keys of the URL the page was opened with: an extension that registers after the first hash write (a
+  // slow network) still gets its value, unless the user has navigated since.
+  const entryParams = params(location.hash);
+  let navigated = false;
 
   function write(force = false) {
     timer = 0;
@@ -150,6 +154,7 @@ export function createHashState(opts) {
 
   const onNav = () => {
     if (location.hash === lastWritten) return;
+    navigated = true;
     clearTimeout(timer);
     applyCurrent(false);
   };
@@ -160,7 +165,8 @@ export function createHashState(opts) {
     if (CORE_KEYS.has(key)) throw new Error(`hash key "${key}" is reserved`);
     if (!h || typeof h.get !== "function" || typeof h.set !== "function") throw new Error("hash.register needs {get, set}");
     extras.set(key, h);
-    const v = params(location.hash).get(key);
+    let v = params(location.hash).get(key);
+    if (v == null && !navigated) v = entryParams.get(key);
     if (v != null) {
       queueMicrotask(() => {
         if (extras.get(key) !== h) return;
