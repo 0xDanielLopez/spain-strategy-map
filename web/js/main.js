@@ -78,6 +78,7 @@ async function main() {
   const canvas = document.getElementById("map");
   const ctx = canvas.getContext("2d");
   const cam = new Camera(world.width, world.height);
+  cam.maxScale = 6 * 25 / (world.grid.radius || 25); // hexes are smaller than the 25 km original: allow the same on-screen hex size
   let dpr = 1;
   let hits = [];
   let queued = false;
@@ -533,7 +534,7 @@ async function main() {
   const stateName = (idx) => states?.[idx]?.name || w.raw.states[idx]?.name || "State";
 
   function describeCanvas() {
-    const parts = ["Hex map of the contiguous United States", state.lens ? `coloured by the ${state.lens.name} lens` : "showing terrain"];
+    const parts = ["Hex map of Spain", state.lens ? `coloured by the ${state.lens.name} lens` : "showing terrain"];
     if (state.selectedCity) parts.push(`${state.selectedCity.name} selected`);
     else if (state.selectedState != null) parts.push(`${stateName(state.selectedState)} selected`);
     canvas.setAttribute("aria-label", parts.join(", "));

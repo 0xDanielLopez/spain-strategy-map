@@ -1,5 +1,10 @@
 # Data contracts (v2)
 
+> **Phase F0 note.** The Spain Strategy Map currently produces only `world.json` (the base map), `cities.json` (`[]`),
+> `nation.json` (minimal: a "Spain" nation with null statistics) and `sources.json`. The other files described below
+> (states, lenses, resources, counties, city views and so on) are inherited from the original US map and are not built
+> yet. In the contracts below, "state" means an autonomous community (CCAA) and "county" a municipality.
+
 The pipeline (Python) and the browser (web/js) agree on these files in `web/data/`. Change a contract here first, then on
 both sides. All coordinates are **map km**: Albers equal-area, origin top-left, y **down** (see `pipeline/core/geo.py`).
 Per-cell arrays have length `grid.cols * grid.rows`, with index `row * cols + col` (pointy-top, odd-r layout, see
@@ -42,36 +47,52 @@ Per-cell arrays have length `grid.cols * grid.rows`, with index `row * cols + co
 ```jsonc
 {
   "version": 2,
-  "grid": {"radius": 25, "cols": 117, "rows": 90},
-  "width": 5002.0, "height": 3301.7, "margin": 200,
-  "owner":  [int],   // -1 water, -2 foreign land (Canada, Mexico, the Caribbean), >=0 index into states
-  "county": [int],   // index into counties, -1 if none
+  "country": "Spain",
+  "grid": {"radius": 10, "cols": 99, "rows": 79},
+  "width": 1600.0, "height": 1200.0, "margin": 80,
+  "insets": [{"name": "Canarias", "x0": 160.0, "y0": 940.0, "x1": 670.0, "y1": 1170.0}],   // map km, y down
+  "owner":  [int],   // -1 water, -2 foreign land (Portugal, France, Andorra, Morocco, ...), >=0 index into states (CCAA)
+  "county": [int],   // index into counties (municipality), -1 if none
   "elev":   [int],   // metres. Land: mean of land samples only. Water: mean of the hex's ETOPO samples below sea
                      // level (its depth, <= 0); lakes: min(mean, 0); -4000 where ETOPO has no samples
   "elev_max": [int], // optional: metres, the highest land sample in the hex (0 for water); the art uses it for snow
   "water":  [int],   // 0 land, 1 ocean, 2 coast (next to land or shallower than 200 m), 3 lake
   "relief": [int],   // 0 flat, 1 hills, 2 mountains, 3 peaks (alpine). 0 for water. A hex whose lower 60% of land
                      // samples is flat lowland (spread < 60 m, under 400 m) is eased one class (valley floors)
-  "cover":  [int],   // land-cover id (see tables.cover). 0 = unknown/none (water, foreign land outside NLCD)
-  "pct": {           // share of the cell's land samples, 0..100 ints (US cells; 0 elsewhere)
-    "forest": [int], "crop": [int], "pasture": [int], "grass": [int], "shrub": [int],
-    "wetland": [int], "developed": [int]
-  },
+  "cover":  [int],   // land-cover id (see tables.cover). 0 = none (water, foreign land, no WorldCover land points)
+  "pct": {           // share of the cell's valid WorldCover points, 0..100 ints (Spanish cells; 0 elsewhere)
+    "forest": [int], "crop": [int], "grass": [int], "shrub": [int], "wetland": [int], "developed": [int]
+  },                 // no "pasture": pastures are inside grass
   "tables": {
     "water":  [{"id": 0, "name": "Land"}, {"id": 1, "name": "Ocean", "color": "#1b4266", "rule": "..."}, ...],
     "relief": [{"id": 0, "name": "Flat", "rule": "..."}, ...],
-    "cover":  [{"id": 1, "key": "forest_deciduous", "name": "Deciduous forest", "color": "#4f7a35", "nlcd": [41], "rule": "..."}, ...]
+    "cover":  [{"id": 3, "key": "forest_mixed", "name": "Tree cover", "color": "#43703f", "worldcover": [10], "rule": "..."}, ...]
   },
-  "states":   [{"fips": "01", "abbr": "AL", "name": "Alabama"}],
-  "counties": [{"geoid": "01001", "name": "Autauga County"}],
-  "rivers":   [{"name": "Mississippi", "rank": 1, "pts": [x0, y0, x1, y1, ...]}]   // clipped to the map; no lake centerlines
+  "states":   [{"fips": "01", "abbr": "AN", "name": "Andalucía"}],   // the 19 CCAA in INE code order; owner = index
+  "counties": [{"geoid": "01001", "name": "Alegría-Dulantzi", "province": "01"}],   // all LAU municipalities, code order
+  "forced":   [{"cell": 1234, "name": "Ceuta", "reason": "Ceuta (19 km2) is smaller than one hex"}],
+  "rivers":   [{"name": "Tajo", "rank": 1, "pts": [x0, y0, x1, y1, ...]}]   // clipped to the map; no lake centerlines
 }
 ```
 
-Cover ids (fixed): 0 none · 1 forest_deciduous · 2 forest_evergreen · 3 forest_mixed · 4 scrub (scrub & desert) ·
-5 grassland · 6 pasture · 7 cropland · 8 wetland · 9 urban · 10 barren · 11 ice.
-Dominant cover per cell = the largest group among its land samples. A cell is **urban** if NLCD 22+23+24 (developed
-low/med/high) ≥ 30% of land samples. NLCD 21 (developed open space) counts toward grassland.
+* **`states`**: 17 autonomous communities plus Ceuta and Melilla, 19 entries. `fips` is the INE community code, `abbr` the
+  ISO 3166-2 suffix. **`counties`** are the GISCO LAU 2024 municipalities (`geoid` = INE municipality code, `province` =
+  INE province code).
+* **Ownership**: each hex samples 7 points (centre plus 6 at 60% of the way to the corners). A hex is land when more than
+  half are land and it is not a tidal bay. `owner` is the CCAA with the most Spanish samples (one vote per sample; ties go
+  to the centre's CCAA, else the lowest index). `county` is the centre's municipality if it lies in the owner CCAA, else
+  the most common municipality among the samples in that CCAA (ties: lowest index).
+* **`insets`**: the Canary Islands are drawn in a frame in the Atlantic (map km rectangles). Hexes inside a frame own only
+  Spanish municipalities or sea. The projection is Albers equal-area (standard parallels 36 and 44, origin 40N 3W) for the
+  mainland and a second Albers per inset.
+* **`forced`**: cartographic exceptions. Ceuta, Melilla and each island get a land hex even if sampling would not give one.
+  Lists only the hexes that were actually changed.
+
+Cover ids used (fixed ids): 0 none · 3 forest_mixed (tree cover) · 4 scrub (shrubland) · 5 grassland · 7 cropland ·
+8 wetland · 9 urban (built-up) · 10 barren (bare / sparse) · 11 ice (snow & ice). Ids 1, 2 and 6 are not used.
+Dominant cover per cell = the largest group among its valid WorldCover points (water and no-data are ignored). A cell is
+**urban** if WorldCover class 50 (built-up) is ≥ 20% of valid points. Cover comes from the last overview of ESA WorldCover 2021
+(~600 m pixels) sampled every 1 km.
 
 ## cities.json
 

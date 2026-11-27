@@ -1,7 +1,7 @@
-"""Build the deploy package: one file, usaciv.zip in the project root. It unzips to a usaciv/ folder holding the static
-site, ready to upload as /usaciv/. (dist/usaciv/ is the same folder unzipped, kept for local testing.)
+"""Build the deploy package: one file, spain-strategy-map.zip in the project root. It unzips to a spain-strategy-map/ folder holding the static
+site, ready to upload as /spain-strategy-map/. (dist/spain-strategy-map/ is the same folder unzipped, kept for local testing.)
 
-The site gets a copy of the source code as usaciv-source.zip, linked from the in-app help, so anyone can download,
+The site gets a copy of the source code as spain-strategy-map-source.zip, linked from the in-app help, so anyone can download,
 run and remix it. Both zips are deterministic (sorted entries, fixed timestamps), so rebuilding from unchanged files
 gives byte-identical archives.
 """
@@ -14,7 +14,7 @@ from pathlib import Path
 
 from .core.paths import ROOT, WEB
 
-NAME = "usaciv"
+NAME = "spain-strategy-map"
 DIST = ROOT / "dist"
 SITE = DIST / NAME
 SOURCE_ZIP = f"{NAME}-source.zip"

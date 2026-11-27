@@ -220,6 +220,7 @@ export function drawStatic(ctx, vp, w, opts) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   if (opts.labels !== false) drawStateLabels(ctx, vp, w, Rpx);
   lap("labels");
+  if (opts.labels !== false) drawInsets(ctx, vp, w);
   upTo(Infinity);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
@@ -318,6 +319,33 @@ function drawEdgeFog(ctx, vp, W, H) {
   // No cloud puffs: soft radial blobs read as a rendering glitch; the flat mist bands read as open sea.
 }
 
+
+// Inset boxes (world.insets, e.g. the Canary Islands): a thin dark frame with the name in small caps at its
+// top-left corner. Screen space (ctx is already at dpr scale), so the line stays 1.5 px at every zoom.
+function drawInsets(ctx, vp, w) {
+  const list = w.raw.insets;
+  if (!Array.isArray(list) || !list.length) return;
+  const s = vp.s;
+  ctx.save();
+  ctx.strokeStyle = "rgba(25,18,10,.85)";
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = "miter";
+  ctx.fillStyle = "rgba(25,18,10,.9)";
+  ctx.font = '600 11px "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif';
+  ctx.textBaseline = "bottom";
+  for (const b of list) {
+    if (![b.x0, b.y0, b.x1, b.y1].every(Number.isFinite)) continue;
+    const x0 = (b.x0 - vp.x0) * s, y0 = (b.y0 - vp.y0) * s, x1 = (b.x1 - vp.x0) * s, y1 = (b.y1 - vp.y0) * s;
+    if (x1 < 0 || y1 < 0 || x0 > vp.cssW || y0 > vp.cssH) continue;
+    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    if (b.name) {
+      if ("fontVariantCaps" in ctx) ctx.fontVariantCaps = "small-caps";
+      ctx.letterSpacing = "1px";
+      ctx.fillText(String(b.name), x0 + 4, y0 + 15 > y1 ? y1 : y0 + 15);
+    }
+  }
+  ctx.restore();
+}
 
 function drawBorders(ctx, w, s, Rpx, lens) {
   // Inner colour band per state (Civ-style), then the edge lines.

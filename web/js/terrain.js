@@ -48,7 +48,9 @@ export const COVER = {
 export function resolveTables(tables) {
   const out = {};
   for (const key of ["water", "relief", "cover"]) {
-    const byId = new Map(DEFAULT_TABLES[key].map((t) => [t.id, { ...t }]));
+    // A world that ships its own cover table (e.g. WorldCover ids 0,3,4,5,7..11) replaces the default one entirely.
+    const own = key === "cover" && Array.isArray(tables?.cover) && tables.cover.length > 0;
+    const byId = new Map((own ? [] : DEFAULT_TABLES[key]).map((t) => [t.id, { ...t }]));
     for (const t of tables?.[key] || []) byId.set(t.id, { ...(byId.get(t.id) || {}), ...t });
     out[key] = [...byId.values()].sort((a, b) => a.id - b.id);
   }

@@ -1,8 +1,10 @@
 """Small, dependency-free geometry helpers.
 
-Everything on the map lives in "map km": an Albers equal-area projection of the
-contiguous US, shifted so the top-left of the map is (0, 0) and y points *down*
-(like screen coordinates). Both the hex grid and the browser use this space.
+Everything on the map lives in "map km": an Albers equal-area projection of Spain
+(standard parallels 36/44, origin 40N 3W) with the Canary Islands drawn in an
+inset frame in the Atlantic, shifted so the top-left of the map is (0, 0) and
+y points *down* (like screen coordinates). Both the hex grid and the browser
+use this space.
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ import json
 import math
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import IO, Iterable, Iterator
 
 R_EARTH_KM = 6371.0088
@@ -76,23 +78,149 @@ class AlbersEllipsoid:
 
 
 @dataclass
+class Inset:
+    """A far-away region drawn inside a fixed frame of the main map.
+
+    `box` = (lon0, lat0, lon1, lat1): points inside it belong to the inset.
+    `albers` = (lat1, lat2, lat0, lon0) of the inset's own projection.
+    `frame` = (x0, y0, x1, y1) in main-Albers km (y up). The projected box is
+    centred inside the frame by a fixed translation (tx, ty).
+    """
+
+    name: str
+    box: tuple[float, float, float, float]
+    albers: tuple[float, float, float, float]
+    frame: tuple[float, float, float, float]
+    proj: Albers = field(init=False, repr=False)
+    tx: float = field(init=False, repr=False)
+    ty: float = field(init=False, repr=False)
+
+    def __post_init__(self):
+        self.proj = Albers(*self.albers)
+        lon0, lat0, lon1, lat1 = self.box
+        pts = []
+        for i in range(41):
+            t = i / 40
+            lo, la = lon0 + (lon1 - lon0) * t, lat0 + (lat1 - lat0) * t
+            pts += [self.proj(lo, lat0), self.proj(lo, lat1), self.proj(lon0, la), self.proj(lon1, la)]
+        cx = (min(p[0] for p in pts) + max(p[0] for p in pts)) / 2
+        cy = (min(p[1] for p in pts) + max(p[1] for p in pts)) / 2
+        x0, y0, x1, y1 = self.frame
+        self.tx, self.ty = (x0 + x1) / 2 - cx, (y0 + y1) / 2 - cy
+
+    def contains_lonlat(self, lon: float, lat: float) -> bool:
+        lon0, lat0, lon1, lat1 = self.box
+        return lon0 <= lon <= lon1 and lat0 <= lat <= lat1
+
+    def contains_xy(self, x: float, y: float) -> bool:
+        """Is a main-Albers km point inside the frame?"""
+        x0, y0, x1, y1 = self.frame
+        return x0 <= x <= x1 and y0 <= y <= y1
+
+    def project(self, lon: float, lat: float) -> tuple[float, float]:
+        """lon/lat -> main-Albers km (y up), already translated into the frame."""
+        x, y = self.proj(lon, lat)
+        return x + self.tx, y + self.ty
+
+    def inverse(self, x: float, y: float) -> tuple[float, float]:
+        return self.proj.inverse(x - self.tx, y - self.ty)
+
+
+# Move the frame here (main-Albers km, y up). Bottom right of the map, over the Mediterranean and the Algerian
+# coast: south of Cartagena and Formentera, east of Melilla and Cabo de Gata. The bottom-left corner of the screen
+# belongs to the minimap, so the frame stays away from it.
+INSETS = (Inset("Canarias", (-18.6, 27.3, -13.0, 29.7), (27.6, 29.4, 28.5, -15.75), (110.0, -610.0, 620.0, -380.0)),)
+
+MAIN_ALBERS = (36.0, 44.0, 40.0, -3.0)
+
+
+def fit_bounds(points_main_albers: Iterable[tuple[float, float]], insets=INSETS, margin: float = 0.0):
+    """Bounds covering main-Albers points (km, y up) and every inset frame.
+
+    Returns (min_x, max_y, width, height) in km, including `margin` on every
+    side, ready for MapProjection(min_x, max_y, margin) and the map size.
+    """
+    xs, ys = [], []
+    for x, y in points_main_albers:
+        xs.append(x)
+        ys.append(y)
+    for ins in insets:
+        x0, y0, x1, y1 = ins.frame
+        xs += [x0, x1]
+        ys += [y0, y1]
+    return min(xs), max(ys), max(xs) - min(xs) + 2 * margin, max(ys) - min(ys) + 2 * margin
+
+
+@dataclass
 class MapProjection:
-    """lon/lat → map km (origin top-left, y down)."""
+    """lon/lat -> map km (origin top-left, y down), Canary Islands in an inset."""
 
     min_x: float
     max_y: float
     margin: float
+    insets: tuple = INSETS
 
     def __post_init__(self):
-        self._albers = Albers()
+        self._albers = Albers(*MAIN_ALBERS)
 
-    def __call__(self, lon: float, lat: float) -> tuple[float, float]:
-        x, y = self._albers(lon, lat)
+    def _shift(self, x: float, y: float) -> tuple[float, float]:
         return x - self.min_x + self.margin, self.max_y - y + self.margin
 
-    def inverse(self, x: float, y: float) -> tuple[float, float]:
-        """map km → (lon, lat)."""
-        return self._albers.inverse(x + self.min_x - self.margin, self.max_y + self.margin - y)
+    def _unshift(self, X: float, Y: float) -> tuple[float, float]:
+        return X + self.min_x - self.margin, self.max_y + self.margin - Y
+
+    def _inset(self, name: str | None):
+        return next((i for i in self.insets if i.name == name), None)
+
+    def region_of(self, lon: float, lat: float) -> str:
+        for ins in self.insets:
+            if ins.contains_lonlat(lon, lat):
+                return ins.name
+        return "main"
+
+    def ring_region(self, ring) -> str:
+        """Region of a ring, decided once from its lon/lat bbox centre."""
+        lons = [p[0] for p in ring]
+        lats = [p[1] for p in ring]
+        return self.region_of((min(lons) + max(lons)) / 2, (min(lats) + max(lats)) / 2)
+
+    def __call__(self, lon: float, lat: float, region: str | None = None) -> tuple[float, float]:
+        if region is None:
+            region = self.region_of(lon, lat)
+        ins = self._inset(region) if region != "main" else None
+        x, y = ins.project(lon, lat) if ins else self._albers(lon, lat)
+        return self._shift(x, y)
+
+    def project_ring(self, ring) -> list[tuple[float, float]]:
+        region = self.ring_region(ring)
+        return [self(p[0], p[1], region) for p in ring]
+
+    def hidden(self, lon: float, lat: float) -> bool:
+        """True if a main-region point lands under an inset frame (callers drop it)."""
+        if self.region_of(lon, lat) != "main":
+            return False
+        x, y = self._albers(lon, lat)
+        return any(i.contains_xy(x, y) for i in self.insets)
+
+    def frame_at(self, X: float, Y: float) -> str | None:
+        x, y = self._unshift(X, Y)
+        return next((i.name for i in self.insets if i.contains_xy(x, y)), None)
+
+    def inverse(self, X: float, Y: float) -> tuple[float, float]:
+        """map km -> (lon, lat); inside an inset frame the inset's inverse is used."""
+        x, y = self._unshift(X, Y)
+        for ins in self.insets:
+            if ins.contains_xy(x, y):
+                return ins.inverse(x, y)
+        return self._albers.inverse(x, y)
+
+    def frames(self) -> list[dict]:
+        out = []
+        for ins in self.insets:
+            x0, y0, x1, y1 = ins.frame
+            (ax, ay), (bx, by) = self._shift(x0, y1), self._shift(x1, y0)
+            out.append({"name": ins.name, "x0": round(ax, 1), "y0": round(ay, 1), "x1": round(bx, 1), "y1": round(by, 1)})
+        return out
 
     def to_dict(self) -> dict:
         return {"min_x": self.min_x, "max_y": self.max_y, "margin": self.margin}

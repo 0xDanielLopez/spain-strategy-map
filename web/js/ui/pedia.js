@@ -24,10 +24,10 @@ export function initPedia(data) {
   const pages = {
     "About this map": () => `
       ${h2("pedia", "📖", "About this map")}
-      <p>This is the real United States, drawn like a strategy game. Nothing is invented: every tile, city and
+      <p>This is the real Spain, drawn like a strategy game. Nothing is invented: every tile, city and
       number comes from public data, listed under <i>Sources</i>.</p>
       <h4>How it's built</h4>
-      <p>The lower 48 states are projected (Albers equal-area) and cut into ${data.world.grid.cols}×${data.world.grid.rows}
+      <p>Spain is projected (equal-area) and cut into ${data.world.grid.cols}×${data.world.grid.rows}
       hexes, each ${data.world.grid.radius * 2} km corner to corner. Each hex belongs to the state and county under its centre.
       Terrain comes from elevation samples inside each hex.</p>
       <p><b>Cities</b> are the metropolitan and micropolitan areas published in the ACS 1-year estimates (the Census Bureau

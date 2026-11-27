@@ -32,7 +32,7 @@ export function mount(ctx) {
 
   // --- GDP by industry ------------------------------------------------------------------------------------------
   const stRows = data.levels.states.rows;
-  const indBody = section(el, { title: "GDP by industry", kicker: "United States", note: "Value added by each industry, where the work is done. Hover an industry to light up the states where it is the biggest share of the economy; click it to rank the metros that specialise in it." });
+  const indBody = section(el, { title: "GDP by industry", kicker: "Spain", note: "Value added by each industry, where the work is done. Hover an industry to light up the states where it is the biggest share of the economy; click it to rank the metros that specialise in it." });
   const indRows = Object.entries(gdpInd).filter(([, v]) => fin(v)).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({
     key: k, label: short(nation.gdp_industries?.[k] || k), full: nation.gdp_industries?.[k], value: v, text: money(v), sub: pct(v / n.gdp), icon: indIcon(k),
   }));

@@ -1,7 +1,7 @@
 [project]
-name = "usaciv"
+name = "spain-strategy-map"
 version = "0.1.0"
-description = "A Civilization-style visualizer of the real United States"
+description = "Spain drawn as a 4X strategy-game map from public data"
 requires-python = ">=3.11"
 dependencies = []  # standard library only, on purpose
 

@@ -180,7 +180,7 @@ function reportPopulation(rep, n, st, metros) {
     label: `${prefix}${x.r.name}`, sub: x.r.kind === "city" ? x.r.sub : "", value: x.v, text: signedPct(x.v), tone: x.v >= 0 ? "good" : "bad",
   });
   const groups = [];
-  if (fin(n.growth)) groups.push({ rows: [{ label: "United States", value: n.growth, text: signedPct(n.growth), tone: n.growth >= 0 ? "good" : "bad", strong: true }] });
+  if (fin(n.growth)) groups.push({ rows: [{ label: "Spain", value: n.growth, text: signedPct(n.growth), tone: n.growth >= 0 ? "good" : "bad", strong: true }] });
   const extremes = (list, what) => {
     if (list.length < 2) return;
     const k = Math.min(3, Math.floor(list.length / 2));
@@ -211,7 +211,7 @@ function reportUnemployment(rep, n, st, metros) {
   const row = (label, x) => ({ label: `${label}: ${x.r.name}`, sub: x.r.kind === "city" ? x.r.sub : "", value: x.v, text: pct(x.v), tone: tone(x.v) });
   const spread = (list) => (list.length >= 3 ? [row("Highest", list[0]), row("Median", list[Math.floor(list.length / 2)]), row("Lowest", list.at(-1))] : []);
   const groups = [];
-  if (fin(n.unemployment)) groups.push({ rows: [{ label: "United States", value: n.unemployment, text: pct(n.unemployment), strong: true }] });
+  if (fin(n.unemployment)) groups.push({ rows: [{ label: "Spain", value: n.unemployment, text: pct(n.unemployment), strong: true }] });
   const sRows = spread(ss), mRows = spread(sorted(metros, u, BIG_METRO_MIN));
   if (sRows.length) groups.push({ title: rep.scope.label, rows: sRows });
   if (mRows.length) groups.push({ title: `Large metros (${compact(BIG_METRO_MIN)}+)`, rows: mRows });
