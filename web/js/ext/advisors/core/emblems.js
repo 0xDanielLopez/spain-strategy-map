@@ -2,6 +2,8 @@
 import { esc } from "./util.js";
 
 const GLYPHS = {
+  // two overlapping rings: what two things have in common
+  compare: `<circle cx="25.5" cy="32" r="12" fill="#fff4d2" fill-opacity=".55" stroke="#2a1d08" stroke-width="1.5"/><circle cx="38.5" cy="32" r="12" fill="#fff4d2" fill-opacity=".55" stroke="#2a1d08" stroke-width="1.5"/>`,
   // lightning bolt over a small derrick-like base
   energy: `<path d="M35.5 12 20 35h10.5L27 52l17-25H33z" fill="#fff4d2" stroke="#2a1d08" stroke-width="1.6" stroke-linejoin="round"/>`,
   // a classical bank: pediment, four columns, plinth

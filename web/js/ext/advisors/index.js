@@ -24,6 +24,7 @@ export const ADVISORS = [
   { id: "commerce", name: "Infraestructuras", role: "Maestro de Obras", color: "#2fa4b8", dark: "#062630", blurb: "Puertos, aeropuertos y red de carreteras y ferrocarril, sin cifras de tráfico.", load: () => import("./views/commerce.js") },
   { id: "culture", name: "Patrimonio y parques", role: "Guardián del Patrimonio", color: "#c25b9a", dark: "#2e0c22", blurb: "Bienes del Patrimonio Mundial de la UNESCO y parques nacionales, por comunidad.", load: () => import("./views/culture.js") },
   { id: "transparency", name: "Transparencia", role: "Escribano Mayor", color: "#7a8fa6", dark: "#101a26", blurb: "Delitos conocidos, contratos públicos y boletines oficiales, siempre agregados y con enlace a la fuente.", load: () => import("./views/transparency.js") },
+  { id: "compare", name: "Comparar", role: "Cronista", color: "#d4776a", dark: "#3a120c", blurb: "Encuentra los municipios más parecidos a uno y ponlos cara a cara, indicador a indicador.", load: () => import("./views/compare.js") },
   { id: "explorer", name: "Explorador", role: "Cartógrafo", color: "#9a7bc9", dark: "#1e1236", blurb: "Disecciona cada número: cualquier nivel, columnas y gráfico.", load: () => import("./views/explorer.js") },
 ];
 const byId = new Map(ADVISORS.map((a) => [a.id, a]));
@@ -34,7 +35,7 @@ const COUNCIL = (() => {
     { label: "Personas y territorio", ids: ["people", "knowledge", "land"] },
     { label: "Energía, infraestructuras y patrimonio", ids: ["energy", "commerce", "culture"] },
     { label: "Lo público", ids: ["transparency"] },
-    { label: "Tus propias preguntas", ids: ["explorer"] },
+    { label: "Tus propias preguntas", ids: ["compare", "explorer"] },
   ];
   const listed = new Set(g.flatMap((x) => x.ids));
   g[g.length - 1].ids.push(...ADVISORS.filter((a) => !listed.has(a.id)).map((a) => a.id));
