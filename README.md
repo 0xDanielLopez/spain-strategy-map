@@ -57,7 +57,7 @@ superiores salen sin dato en muchas zonas rurales: el INE no publica esos datos 
 Necesitas Python 3.11 o superior y [uv](https://docs.astral.sh/uv/). El pipeline usa solo la biblioteca estándar.
 
 ```bash
-uv run python -m pipeline all       # descarga, procesa, construye y comprueba (la primera vez baja unos 2,9 GB)
+uv run python -m pipeline all       # descarga, procesa, construye y comprueba (la primera vez baja unos 3 GB)
 uv run python -m pipeline serve     # abre http://127.0.0.1:8765
 ```
 

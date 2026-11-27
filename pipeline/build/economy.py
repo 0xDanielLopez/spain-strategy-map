@@ -497,7 +497,7 @@ def build() -> None:
     write_web("cities.json", cities)
     write_web("states.json", states)
     write_web("nation.json", {
-        "vintage": f"datos del INE (población 2026, ocupados 2024, PIB {year})",
+        "vintage": "INE 2024-2026",
         "year": 2026, "gdp_vintage": gdp_doc.get("vintage") or f"INE, Contabilidad Regional de España {year}",
         "nation": nation, "yields": YIELDS,
         "industries": {k: SHORT_SECTION.get(k, jobs_doc["sections"][k.upper()]) for k in KEYS},
