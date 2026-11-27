@@ -166,6 +166,28 @@ def allocation(pairs: dict, n_sections: int) -> list[list[tuple[int, float]]]:
     return out
 
 
+WATER_SHARE = 0.4  # a dock 150 m wide crossing hexes of 150 m rarely fills half of any of them
+
+
+def mostly_water(lat, h: int) -> bool:
+    """A good part (WATER_SHARE) of the hex's WorldCover points are permanent water or have no data (open sea)."""
+    return lat.points[h] > 0 and lat.cls[h * NC] + lat.cls[h * NC + WATER_CLASS] >= WATER_SHARE * lat.points[h]
+
+
+def keep_water_dry(alloc: list[list[tuple[int, float]]], lat) -> list[list[tuple[int, float]]]:
+    """Nobody lives in a hex that is mostly water when the section has drier hexes: its share goes to them.
+
+    Without this a few built-up pixels on a quay give the hex people, it stays land and a river or dock that crosses
+    the city disappears. A section with only wet hexes keeps them (its people must be somewhere).
+    """
+    out = []
+    for rows in alloc:
+        dry = [(h, w) for h, w in rows if not mostly_water(lat, h)]
+        total = sum(w for _, w in dry)
+        out.append([(h, w / total) for h, w in dry] if dry and len(dry) < len(rows) and total > 0 else rows)
+    return out
+
+
 # ---------------------------------------------------------------- lenses
 
 
@@ -340,7 +362,7 @@ def build_scope(scope: dict, out_dir=None, write_index: bool = True) -> dict:
     area = 1.5 * SQRT3 * r * r  # km2 of a hexagon
 
     # population weights (needed first: a hex with people stays land)
-    alloc = allocation(lat.pairs, n_sec)
+    alloc = keep_water_dry(allocation(lat.pairs, n_sec), lat)
     pop_of = [s["pop"] for s in sstats]
     hex_parts: dict[int, list] = defaultdict(list)
     for s, rows in enumerate(alloc):
@@ -357,8 +379,7 @@ def build_scope(scope: dict, out_dir=None, write_index: bool = True) -> dict:
     for (s, h), (_, k) in lat.pairs.items():
         sec_hex_pts[h][s] += k
 
-    def wet(h):
-        return lat.points[h] > 0 and (lat.cls[h * NC] + lat.cls[h * NC + WATER_CLASS]) * 2 >= lat.points[h]
+    wet = lambda h: mostly_water(lat, h)
 
     for h in range(n):
         v = lat.state_votes.get(h)

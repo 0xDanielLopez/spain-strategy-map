@@ -323,3 +323,29 @@ class SeaPossibleTest(unittest.TestCase):
     def test_unknown_city_keeps_the_old_rule(self):
         self.assertTrue(city.sea_possible({"city": "NOPE"}, 5.0, self.world, self.cities))
 
+
+
+class KeepWaterDryTest(unittest.TestCase):
+    """A mostly-water hex gives its share of a section to the drier hexes (synthetic lattice)."""
+
+    class Lat:
+        def __init__(self, water_points):
+            self.points = [10, 10, 10]
+            self.cls = [0] * (3 * city.NC)
+            for h, k in water_points.items():
+                self.cls[h * city.NC + city.WATER_CLASS] = k
+
+    def test_share_moves_to_dry_hexes_and_still_sums_to_one(self):
+        out = city.keep_water_dry([[(0, 0.5), (1, 0.25), (2, 0.25)]], self.Lat({1: 6}))
+        self.assertEqual([h for h, _ in out[0]], [0, 2])
+        self.assertAlmostEqual(sum(w for _, w in out[0]), 1.0)
+        self.assertAlmostEqual(out[0][0][1], 2 / 3)
+
+    def test_a_section_with_only_wet_hexes_keeps_them(self):
+        rows = [[(0, 0.5), (1, 0.5)]]
+        self.assertEqual(city.keep_water_dry(rows, self.Lat({0: 9, 1: 5})), rows)
+
+    def test_no_water_no_change(self):
+        rows = [[(0, 1.0)], []]
+        self.assertEqual(city.keep_water_dry(rows, self.Lat({})), rows)
+
