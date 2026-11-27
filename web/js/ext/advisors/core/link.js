@@ -169,7 +169,7 @@ export function createLinker(app) {
     },
     /** Run fn with hovers that come from the map itself (no beacon: the pointer is already there). */
     fromMap(fn) { quiet++; try { return fn(); } finally { quiet--; } },
-    /** Fly to the standing highlight (the "Frame on map" buttons). */
+    /** Fly to the standing highlight (the "Centrar en el mapa" buttons). */
     frame: frameBase,
     get current() { return hov || base; },
     get baseValue() { return base; },

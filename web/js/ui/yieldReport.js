@@ -1,4 +1,4 @@
-// Top-bar reports: click a national stat (population, a yield, unemployment) for a Civ-style dropdown with its
+// Top-bar reports: click a national stat (population, a yield, unemployment) for a 4X-style dropdown with its
 // definition, what makes it up, and state / metro leaderboards.
 //
 // The first half is pure data (statDefs, buildReport): plain objects from nation.json, states.json, cities.json and
@@ -18,14 +18,14 @@ const GDP_ROWS = 8; // industries shown before "Show all"
 const LENS_FOR = { population: "density", gold: "income", food: "farmland", unemployment: "poverty" };
 // The advisor dashboard (ext/advisors) that explores each report further; `industry` preselects the Economy
 // advisor's specialisation ranking. Buttons show only when the advisors extension is installed.
+// Only enabled advisors (economy, people, knowledge, land, explorer). `industry` is a CNAE section letter.
 const ADVISOR_FOR = {
   population: [{ id: "people", label: "Población" }],
   gold: [{ id: "economy", label: "Economía" }],
-  food: [{ id: "land", label: "Territorio" }, { id: "economy", label: "Economía (agricultura)", industry: "agriculture" }],
-  production: [{ id: "economy", label: "Economía (industria)", industry: "manufacturing" }, { id: "energy", label: "Energía y recursos" }],
-  science: [{ id: "knowledge", label: "Conocimiento" }],
-  culture: [{ id: "economy", label: "Economía (artes)", industry: "arts" }],
-  unemployment: [{ id: "prosperity", label: "Prosperidad" }],
+  food: [{ id: "land", label: "Territorio" }, { id: "economy", label: "Economía (agricultura)", industry: "a" }],
+  production: [{ id: "economy", label: "Economía (industria)", industry: "c" }],
+  science: [{ id: "knowledge", label: "Formación y perfil profesional" }],
+  culture: [{ id: "economy", label: "Economía (artes)", industry: "r" }],
 };
 const advisorApp = () => (typeof window !== "undefined" && window.__app?.hasMode?.("advisor") ? window.__app : null);
 

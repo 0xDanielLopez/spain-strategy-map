@@ -561,21 +561,26 @@ def build() -> None:
     cover = [0] * grid.size
     pct = {k: [0] * grid.size for k in PCT}
     no_cover = 0
+    point_class: dict[int, list] = {}  # hex -> WorldCover class per lattice point (None: no tile), for muni_cover
     for i in range(grid.size):
         if owner[i] < 0:
             continue
         cx, cy = grid.center(*grid.col_row(i))
         counts: Counter = Counter()
+        classes: list = []
         for ox, oy in lattice:
             lon, lat = proj.inverse(cx + ox, cy + oy)
             lat0, lon0 = 3 * math.floor(lat / 3), 3 * math.floor(lon / 3)
             t = tiles.get((lat0, lon0))
             if t is None:
+                classes.append(None)
                 continue  # no tile published: sea
             w, h = t["w"], t["h"]
             c = min(w - 1, max(0, int((lon - lon0) * w / 3)))
             r = min(h - 1, max(0, int((lat0 + 3 - lat) * h / 3)))
             counts[legend[t["rows"][r][c]]] += 1
+            classes.append(legend[t["rows"][r][c]])
+        point_class[i] = classes
         valid = sum(n for code, n in counts.items() if code not in IGNORED_CLASSES)
         cover[i] = dominant_cover(counts, valid)
         if not valid:
@@ -591,16 +596,27 @@ def build() -> None:
     muni_inset = [any(proj.ring_region(r) != "main" for r in m["rings"]) for m in munis]
     cell_counts: dict[int, Counter] = {}
     land_km2 = [0.0] * grid.size
+    # Per municipality: WorldCover points [forest, crop, developed, sampled land] among the lattice points located in
+    # it (the same points and groupings as pct; water and no-data points are not counted in the total).
+    muni_cover = [[0, 0, 0, 0] for _ in munis]
     for i in range(grid.size):
         if owner[i] < 0:
             continue
         cx, cy = grid.center(*grid.col_row(i))
         counts: Counter = Counter()
-        for ox, oy in lattice:
+        classes = point_class[i]
+        for n, (ox, oy) in enumerate(lattice):
             x, y = cx + ox, cy + oy
             k = muni_idx.locate(x, y)
             if k >= 0 and (proj.frame_at(x, y) is not None) == muni_inset[k]:
                 counts[k] += 1
+                cls = classes[n]
+                if cls is not None and cls not in IGNORED_CLASSES:
+                    mc = muni_cover[k]
+                    mc[3] += 1
+                    for j, key in enumerate(("forest", "crop", "developed")):
+                        if cls in PCT[key]:
+                            mc[j] += 1
         if counts:
             cell_counts[i] = counts
             land_km2[i] = sum(counts.values()) * COVER_STEP_KM**2
@@ -733,6 +749,7 @@ def build() -> None:
             "pct": pct,
             "muni_weights": muni_weights,
             "muni_fallback": muni_fallback,
+            "muni_cover": muni_cover,
             "land_km2": land_km2,
         },
     )

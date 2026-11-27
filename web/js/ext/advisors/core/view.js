@@ -88,7 +88,7 @@ export function chips(parent, { items, onChange, label = "" }) {
   };
 }
 
-/** "Show on map" lens button (toggles the lens). */
+/** "Mostrar en el mapa" lens button (toggles the lens). */
 export function lensButton(app, lensId, label) {
   const lens = app.lensById?.get(lensId);
   if (!lens) return null;
@@ -97,7 +97,7 @@ export function lensButton(app, lensId, label) {
   const sync = () => {
     const on = app.state.lens?.id === lensId;
     b.setAttribute("aria-pressed", String(on));
-    b.innerHTML = `${icon(lens.icon || "layers", lens.emoji || "🗺️", { size: 14 })}<span>${esc(on ? `Showing ${lens.name} lens` : label || `Show ${lens.name} lens on map`)}</span>`;
+    b.innerHTML = `${icon(lens.icon || "layers", lens.emoji || "🗺️", { size: 14 })}<span>${esc(on ? `Mostrando la capa ${lens.name}` : label || `Mostrar la capa ${lens.name} en el mapa`)}</span>`;
   };
   sync();
   b.addEventListener("click", () => {
@@ -109,7 +109,7 @@ export function lensButton(app, lensId, label) {
 }
 
 /**
- * "Map colour" picker: a segmented control that colours the map while the view is open (restored on exit by
+ * "Mapa" picker: a segmented control that colours the map while the view is open (restored on exit by
  * ctx.setLens). options: [{value, label, lens: () => lens id | lens object | null}]. Follows lens changes made
  * elsewhere (the lens dock, L): when the map shows none of the options, no button is pressed.
  */
@@ -126,7 +126,7 @@ export function mapPicker(ctx, parent, { options, value, label = "Mapa" }) {
     busy = true;
     try { ctx.setLens(resolve(o)); } finally { busy = false; }
   };
-  const seg = segmented(row, { label: `${label} colour`, options, value, onChange: (v) => pick(v) });
+  const seg = segmented(row, { label: `${label}: color`, options, value, onChange: (v) => pick(v) });
   const sync = (lens) => {
     const o = options.find((x) => resolve(x) === (lens || null));
     seg.set(o ? o.value : "__none");
@@ -144,8 +144,8 @@ export function mapPicker(ctx, parent, { options, value, label = "Mapa" }) {
   };
 }
 
-/** A "Frame on map" button for a selection (handled by the advisors shell: flies to the view's highlight). */
-export const frameBtn = () => `<button type="button" class="adv-mini adv-framebtn" data-frame title="Llevar el mapa a la selección"><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/></svg>Frame on map</button>`;
+/** A "Centrar en el mapa" button for a selection (handled by the advisors shell: flies to the view's highlight). */
+export const frameBtn = () => `<button type="button" class="adv-mini adv-framebtn" data-frame title="Llevar el mapa a la selección"><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/></svg>Centrar en el mapa</button>`;
 
 /** Sources and caveats footer. ids: source ids from sources.json; caveats: [string] */
 export function sourcesHtml(data, ids, caveats = []) {

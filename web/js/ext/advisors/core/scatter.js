@@ -55,7 +55,7 @@ export function createScatter(host, opts) {
       r: o.size ? rmin + (rmax - rmin) * Math.sqrt(clamp((fin(p.s) ? p.s : 0) / smax, 0, 1)) : o.radius || 3,
     })).sort((a, b) => b.r - a.r);
     root._count = valid.length;
-    cv.setAttribute("aria-label", o.ariaLabel || `Scatter plot of ${valid.length} points: ${o.y?.label || "y"} against ${o.x?.label || "x"}`);
+    cv.setAttribute("aria-label", o.ariaLabel || `Gráfico de dispersión de ${valid.length} puntos: ${o.y?.label || "y"} frente a ${o.x?.label || "x"}`);
     hint.textContent = o.brush === false ? "" : `${valid.length.toLocaleString("es-ES")} puntos · arrastra para seleccionar`;
     draw();
   }
@@ -261,7 +261,7 @@ export function createScatter(host, opts) {
       `${esc(o.x?.label || "x")}: <b>${esc((o.x?.fmt || String)(p.x))}</b>`,
       `${esc(o.y?.label || "y")}: <b>${esc((o.y?.fmt || String)(p.y))}</b>`,
     ];
-    if (o.size && fin(p.s)) rows.push(`${esc(o.size.label || "size")}: <b>${esc((o.size.fmt || String)(p.s))}</b>`);
+    if (o.size && fin(p.s)) rows.push(`${esc(o.size.label || "tamaño")}: <b>${esc((o.size.fmt || String)(p.s))}</b>`);
     if (o.colorLabel && p.c != null && !o.colorIsSame) rows.push(`${esc(o.colorLabel)}: <b>${esc((o.colorFmt || String)(p.c))}</b>`);
     if (p.extra) rows.push(esc(p.extra));
     tip.innerHTML = rows.join("<br>");

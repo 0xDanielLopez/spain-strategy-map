@@ -1,8 +1,8 @@
-// Advisors: Civ-style exploration dashboards docked beside the map, linked both ways with it.
+// Advisors: 4X-style exploration dashboards docked beside the map, linked both ways with it.
 //
 //   app mode "advisor", params {id, ...}  (id = an advisor id, or none for the council picker)
 //   URL hash: #advisor=<id> ("council" for the picker)
-//   top-bar button "Advisors"
+//   top-bar button "Consejeros"
 // Each advisor is a module in views/ exporting mount(ctx) → {onMapHover?, onMapClick?, onEscape?, destroy?}.
 // ctx = {app, data, el, link, params, on(name, fn), bubbles(id, opts), tip, setResourceFilter, setShowResources,
 //        switchTo(id, params)} — everything registered through ctx is undone when the view goes away.
@@ -13,25 +13,21 @@ import { frameNation } from "./core/frame.js";
 import { esc, el } from "./core/util.js";
 import { icon } from "../../ui/icon.js";
 
+// Only the advisors Spain has data for. The others (prosperity, military, commerce, culture, energy) are not listed
+// here, so they are neither in the council nor reachable by #advisor=<id>: an unknown id falls back to the council.
 export const ADVISORS = [
-  { id: "energy", name: "Energía y recursos", role: "Ministro de Energía", color: "#d98a2b", dark: "#3a1f08", blurb: "De dónde viene la energía y qué hay bajo tierra.", load: () => import("./views/energy.js") },
-  { id: "economy", name: "Economía", role: "Tesorero", color: "#c9a43a", dark: "#3a2c08", blurb: "Quién produce qué: el PIB por sector y las áreas urbanas que lo lideran.", load: () => import("./views/economy.js") },
-  { id: "people", name: "Población", role: "Guardián del Censo", color: "#c46a4f", dark: "#3a140c", blurb: "Dónde vive la gente, adónde se muda, qué edad tiene y cuánto lleva allí.", load: () => import("./views/people.js") },
-  { id: "prosperity", name: "Prosperidad y vivienda", role: "Mayordomo del Hogar", color: "#3f9c82", dark: "#082a22", blurb: "Rentas, precios de la vivienda, alquileres y quién se queda atrás.", load: () => import("./views/prosperity.js") },
-  { id: "knowledge", name: "Conocimiento", role: "Sabio Real", color: "#4a86d6", dark: "#0a1c3a", blurb: "Titulaciones, banda ancha y empleo científico.", load: () => import("./views/knowledge.js") },
-  { id: "land", name: "Territorio", role: "Agrimensor General", color: "#6e9a3c", dark: "#18280a", blurb: "Bosque, cultivo, desierto y ciudad: qué cubre el país.", load: () => import("./views/land.js") },
-  { id: "military", name: "Defensa", role: "General", color: "#8796ab", dark: "#141b26", blurb: "Bases y campos de maniobras, tropas y gasto en defensa por comunidad, y dónde viven los veteranos.", load: () => import("./views/military.js") },
-  { id: "commerce", name: "Comercio", role: "Maestre de Comercio", color: "#2fa4b8", dark: "#062630", blurb: "Las grandes rutas de mercancías entre áreas urbanas, y los puertos y aeropuertos más activos.", load: () => import("./views/commerce.js") },
-  { id: "culture", name: "Cultura", role: "Guardián de Maravillas", color: "#c25b9a", dark: "#2e0c22", blurb: "Maravillas del territorio, fe y bienestar, y los desastres que sufren los lugares.", load: () => import("./views/culture.js") },
+  { id: "economy", name: "Economía", role: "Tesorero", color: "#c9a43a", dark: "#3a2c08", blurb: "Quién produce qué: ocupados por sector (CNAE), PIB y las áreas urbanas que lideran.", load: () => import("./views/economy.js") },
+  { id: "people", name: "Población", role: "Guardián del Censo", color: "#c46a4f", dark: "#3a140c", blurb: "Dónde vive la gente, dónde crece, qué edad tiene y cuántos residentes son de nacionalidad extranjera.", load: () => import("./views/people.js") },
+  { id: "knowledge", name: "Formación y perfil profesional", role: "Maestro de Formación", color: "#4a86d6", dark: "#0a1c3a", blurb: "Titulaciones superiores y empleo en información, ciencia y actividades profesionales.", load: () => import("./views/knowledge.js") },
+  { id: "land", name: "Territorio", role: "Agrimensor General", color: "#6e9a3c", dark: "#18280a", blurb: "Bosque, cultivo, matorral y superficie construida: qué cubre el país.", load: () => import("./views/land.js") },
   { id: "explorer", name: "Explorador", role: "Cartógrafo", color: "#9a7bc9", dark: "#1e1236", blurb: "Disecciona cada número: cualquier nivel, columnas y gráfico.", load: () => import("./views/explorer.js") },
 ];
 const byId = new Map(ADVISORS.map((a) => [a.id, a]));
 // The council picker groups its advisors (any advisor not listed here is added to the last group).
 const COUNCIL = (() => {
   const g = [
-    { label: "Riqueza y trabajo", ids: ["economy", "prosperity", "commerce", "energy"] },
-    { label: "Personas y territorio", ids: ["people", "knowledge", "culture", "land"] },
-    { label: "Defensa", ids: ["military"] },
+    { label: "Riqueza y trabajo", ids: ["economy"] },
+    { label: "Personas y territorio", ids: ["people", "knowledge", "land"] },
     { label: "Tus propias preguntas", ids: ["explorer"] },
   ];
   const listed = new Set(g.flatMap((x) => x.ids));
@@ -73,7 +69,7 @@ export function install(app) {
     onClick: () => (app.mode === "advisor" ? app.setMode(null) : app.setMode("advisor", { id: lastId })),
   });
   if (btn) {
-    btn.innerHTML = `<svg class="icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.5 3 7v2h18V7z" fill="currentColor"/><path d="M5 10.5h2.6v7H5zM10.7 10.5h2.6v7h-2.6zM16.4 10.5H19v7h-2.6zM3.5 19h17v2.5h-17z" fill="currentColor"/></svg><span class="lbl">Advisors</span>`;
+    btn.innerHTML = `<svg class="icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.5 3 7v2h18V7z" fill="currentColor"/><path d="M5 10.5h2.6v7H5zM10.7 10.5h2.6v7h-2.6zM16.4 10.5H19v7h-2.6zM3.5 19h17v2.5h-17z" fill="currentColor"/></svg><span class="lbl">Consejeros</span>`;
     btn.setAttribute("aria-pressed", "false");
   }
   app.on("mode", ({ name }) => btn?.setAttribute("aria-pressed", String(name === "advisor")));

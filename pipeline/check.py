@@ -30,7 +30,7 @@ from pathlib import Path
 from .core.paths import INTERIM, WEB_DATA
 
 REQUIRED = ["world.json", "cities.json", "nation.json", "sources.json"]
-OPTIONAL = ["states.json", "lenses.json", "resources.json", "counties.json"]
+OPTIONAL = ["states.json", "lenses.json", "resources.json", "counties.json", "districts.json", "citizens.json"]
 N_CCAA = 19
 LENS_FORMATS = {"int", "eur", "pct", "float", "minutes", "years", "category"}
 LENS_SCALES = {"linear", "log"}
@@ -435,6 +435,108 @@ def check_nation(r: Report, nat) -> None:
         r.ok(f"nation.json: {nat['nation']['name']} ({nat['vintage']})")
 
 
+def _pct01(v) -> bool:
+    return v is None or (is_num(v) and 0 <= v <= 1)
+
+
+def check_land(r: Report, what: str, rows: list) -> None:
+    bad = [x for x in rows if x.get("land") is not None and not (
+        isinstance(x["land"], dict) and set(x["land"]) == {"forest", "crop", "developed"}
+        and all(_pct01(v) and v is not None for v in x["land"].values()) and sum(x["land"].values()) <= 1 + 1e-3)]
+    if bad:
+        r.fail(f"{what}: land shares must be {{forest, crop, developed}} in 0..1 summing to at most 1")
+    elif rows and all("land" in x for x in rows):
+        r.ok(f"{what}: land shares in range")
+
+
+COUNTIES_COLUMNS = ["geoid", "name", "state", "province", "population", "land_km2", "density", "growth", "age_mean",
+                    "elderly", "foreign", "household", "income", "poverty", "higher_education", "auf", "cell"]
+COUNTIES_PCT = ["growth", "elderly", "foreign", "poverty", "higher_education"]
+
+
+def check_counties_file(r: Report, doc, world=None, cities=None) -> None:
+    if not isinstance(doc, dict) or not need_keys(r, "counties.json", doc, ["vintage", "fields", "columns", "rows", "attribution"]):
+        return
+    cols, rows = doc["columns"], doc["rows"]
+    if cols != COUNTIES_COLUMNS or [f.get("key") for f in doc["fields"]] != cols:
+        r.fail("counties.json: columns/fields do not match the contract")
+        return
+    if any(not isinstance(x, list) or len(x) != len(cols) for x in rows):
+        r.fail("counties.json: a row does not have one value per column")
+        return
+    if world is not None:
+        if [x[0] for x in rows] != [c["geoid"] for c in world["counties"]]:
+            r.fail("counties.json: rows are not the world.json counties in order")
+            return
+        n_cells = len(world["owner"])
+        if any(x[16] is not None and not (is_int(x[16]) and 0 <= x[16] < n_cells) for x in rows):
+            r.fail("counties.json: cell outside the grid")
+    if any(not (isinstance(x[0], str) and len(x[0]) == 5 and x[0].isdigit()) for x in rows):
+        r.fail("counties.json: geoid must be a 5-digit string")
+    for k in COUNTIES_PCT:
+        j = cols.index(k)
+        lo = -1 if k == "growth" else 0
+        if any(x[j] is not None and not (is_num(x[j]) and lo <= x[j] <= (1 if k != "growth" else 100)) for x in rows):
+            r.fail(f"counties.json: {k} out of range")
+    if cities is not None:
+        ids = {c["id"] for c in cities}
+        if any(x[15] is not None and x[15] not in ids for x in rows):
+            r.fail("counties.json: auf is not a cities.json id")
+    pj = cols.index("population")
+    if any(x[pj] is not None and (not is_int(x[pj]) or x[pj] < 0) for x in rows):
+        r.fail("counties.json: population must be a non-negative integer or null")
+    r.ok(f"counties.json: {len(rows)} rows x {len(cols)} columns, pct in range")
+
+
+def check_districts_file(r: Report, doc, cities=None, nation=None) -> None:
+    if not isinstance(doc, dict) or not need_keys(r, "districts.json", doc, ["version", "note", "rule", "catalog", "cities", "attribution"]):
+        return
+    ids = [c.get("id") for c in doc["catalog"]]
+    if ids != list("abcdefghijklmnopqrs"):
+        r.fail("districts.json: catalog must have one entry per CNAE section a..s")
+        return
+    min_lq = doc["rule"].get("min_lq", 1.25)
+    bad = []
+    for cid, row in doc["cities"].items():
+        ds = (row or {}).get("districts", [])
+        if len(ds) > doc["rule"].get("max_per_city", 5) or any(d["id"] not in ids or d["lq"] < min_lq for d in ds):
+            bad.append(cid)
+        elif [d["strength"] for d in ds] != sorted((d["strength"] for d in ds), reverse=True):
+            bad.append(cid)
+        elif row.get("badge") and (not ds or row["badge"]["district"] != ds[0]["id"]):
+            bad.append(cid)
+        elif not row.get("badge") and ds:
+            bad.append(cid)
+    if bad:
+        r.fail(f"districts.json: {len(bad)} cities break the rule (LQ >= {min_lq}, <= max, sorted, badge = top): {_sample(bad)}")
+    if cities is not None and set(doc["cities"]) != {c["id"] for c in cities}:
+        r.fail("districts.json: cities do not match cities.json")
+    elif not bad:
+        r.ok(f"districts.json: {len(doc['cities'])} cities, every LQ >= {min_lq}")
+
+
+def check_citizens_file(r: Report, doc, cities=None) -> None:
+    if not isinstance(doc, dict) or not need_keys(r, "citizens.json", doc, ["version", "rows", "bases", "groups", "national", "cities", "attribution"]):
+        return
+    bad = []
+    rows = [("national", doc["national"])] + list(doc["cities"].items())
+    for cid, row in rows:
+        for dist, spec in (row or {}).items():
+            if dist not in doc["groups"] or spec is None:
+                continue
+            keys = [g["key"] for g in doc["groups"][dist]]
+            if set(spec["shares"]) != set(keys) or abs(sum(spec["shares"].values()) - 1) > 1e-3 or not all(_pct01(v) for v in spec["shares"].values()) \
+                    or sum(spec["counts"].values()) != spec["total"] or sum(spec["figures"].values()) != doc["figures"][dist] \
+                    or spec["base"] != doc["bases"][dist]:
+                bad.append(f"{cid}/{dist}")
+    if bad:
+        r.fail(f"citizens.json: {len(bad)} distributions with shares not summing to 1, counts not adding up or a wrong base: {_sample(bad)}")
+    if cities is not None and set(doc["cities"]) != {c["id"] for c in cities}:
+        r.fail("citizens.json: cities do not match cities.json")
+    elif not bad:
+        r.ok(f"citizens.json: {len(doc['cities'])} cities, 3 distributions each, shares sum to 1")
+
+
 def check_economy_conservation(r: Report, interim_dir: Path) -> None:
     """Imputed GDP adds up, per province, to the published provincial GDP (from the _economy_stats interim)."""
     p = Path(interim_dir) / "_economy_stats.json"
@@ -654,6 +756,16 @@ def run(web_dir: Path = WEB_DATA, interim_dir: Path = INTERIM, quiet: bool = Fal
         check_cities(r, docs["cities.json"], docs["nation.json"], docs["world.json"], interim_dir)
     if docs.get("states.json") is not None:
         check_states(r, docs["states.json"], docs["nation.json"])
+    if isinstance(docs["cities.json"], list) and docs["cities.json"]:
+        check_land(r, "cities.json", docs["cities.json"])
+    if isinstance(docs.get("states.json"), list):
+        check_land(r, "states.json", docs["states.json"])
+    if docs.get("counties.json") is not None:
+        check_counties_file(r, docs["counties.json"], docs["world.json"], docs["cities.json"])
+    if docs.get("districts.json") is not None:
+        check_districts_file(r, docs["districts.json"], docs["cities.json"], docs["nation.json"])
+    if docs.get("citizens.json") is not None:
+        check_citizens_file(r, docs["citizens.json"], docs["cities.json"])
     if docs["nation.json"] is not None and not _is_f0(docs["nation.json"]):
         check_economy_conservation(r, interim_dir)
 

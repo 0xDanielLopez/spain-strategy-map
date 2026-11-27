@@ -1,44 +1,32 @@
 // City View data model: everything the city screen and its map layer show, derived from cities.json,
 // nation.json, lenses.json, world.json and resources.json. Pure functions over app.data / app.w (no DOM).
+import { iconKey } from "../../industry.js";
 
-// Industry → short label, district colour (the medallion behind its icon) and icon id (icons.js i-<key>).
+// Industry icon key (iconKey(CNAE letter), industry.js) -> district colour (the medallion behind its icon). Names
+// come from nation.json industries (Spanish, keyed by CNAE section letter), never from here.
 export const INDUSTRY = {
-  agriculture: { short: "Agriculture", color: "#4f7a2a" },
-  mining: { short: "Mining", color: "#6a5038" },
-  construction: { short: "Construction", color: "#8a5426" },
-  manufacturing: { short: "Manufacturing", color: "#9a5a22" },
-  wholesale: { short: "Wholesale", color: "#7a6420" },
-  retail: { short: "Retail", color: "#8a6a1e" },
-  transportation: { short: "Logistics", color: "#3d5f73" },
-  utilities: { short: "Utilities", color: "#2a5f86" },
-  information: { short: "Information", color: "#25557e" },
-  finance: { short: "Finance", color: "#7a6420" },
-  real_estate: { short: "Real estate", color: "#6b4a2f" },
-  professional: { short: "Professional", color: "#2b4f8a" },
-  management: { short: "Management", color: "#4a4a7a" },
-  admin: { short: "Admin services", color: "#4b5a68" },
-  education: { short: "Education", color: "#2a3f7a" },
-  health: { short: "Health care", color: "#7a2f2f" },
-  arts: { short: "Arts", color: "#5b3a7e" },
-  accommodation: { short: "Hospitality", color: "#6e3a5e" },
-  other: { short: "Other services", color: "#4b4b4b" },
-  public_admin: { short: "Government", color: "#3a5a4a" },
-  government: { short: "Government", color: "#3a5a4a" },
+  agriculture: { color: "#4f7a2a" }, mining: { color: "#6a5038" }, construction: { color: "#8a5426" },
+  manufacturing: { color: "#9a5a22" }, retail: { color: "#8a6a1e" }, transportation: { color: "#3d5f73" },
+  utilities: { color: "#2a5f86" }, information: { color: "#25557e" }, finance: { color: "#7a6420" },
+  real_estate: { color: "#6b4a2f" }, professional: { color: "#2b4f8a" }, admin: { color: "#4b5a68" },
+  education: { color: "#2a3f7a" }, health: { color: "#7a2f2f" }, arts: { color: "#5b3a7e" },
+  accommodation: { color: "#6e3a5e" }, other: { color: "#4b4b4b" }, public_admin: { color: "#3a5a4a" },
 };
-export const industryIcon = (k) => `i-${k === "government" ? "public_admin" : k}`;
+export const industryIcon = (k) => `i-${iconKey(k)}`;
+const indColor = (k) => INDUSTRY[iconKey(k)]?.color || "#3a4a5e";
 
 // Land-use groups shown as a hex's "tile yield" (world.json pct keys → group). Cover ids give the map colour.
 export const LAND = [
-  { key: "built", label: "Built-up", icon: "l-developed", cover: 9, keys: ["developed"] },
-  { key: "farm", label: "Farmland", icon: "l-farmland", cover: 7, keys: ["crop", "pasture"] },
-  { key: "forest", label: "Forest", icon: "l-forest", cover: 3, keys: ["forest"] },
-  { key: "open", label: "Open land", icon: null, cover: 4, keys: ["grass", "shrub", "wetland"] },
+  { key: "built", label: "Urbano", icon: "l-developed", cover: 9, keys: ["developed"] },
+  { key: "farm", label: "Cultivos", icon: "l-farmland", cover: 7, keys: ["crop", "pasture"] },
+  { key: "forest", label: "Bosque", icon: "l-forest", cover: 3, keys: ["forest"] },
+  { key: "open", label: "Terreno abierto", icon: null, cover: 4, keys: ["grass", "shrub", "wetland"] },
 ];
 
 const sum = (o) => Object.values(o || {}).reduce((a, v) => a + (Number.isFinite(v) ? v : 0), 0);
 const HEX_AREA = (R) => (3 * Math.sqrt(3) / 2) * R * R; // km² of one hex
 
-/** Industries by jobs (ACS C24030, where residents work) with location quotients vs the nation. */
+/** Industries by jobs (INE, jobs by CNAE section, residents by place of residence) with location quotients vs the nation. */
 export function jobIndustries(city, nation) {
   const n = nation.nation;
   const total = city.employed || sum(city.jobs) || 1;
@@ -50,14 +38,14 @@ export function jobIndustries(city, nation) {
       const natShare = (n.jobs?.[key] || 0) / nTotal;
       return {
         key, jobs, share, natShare, lq: natShare > 0 ? share / natShare : null,
-        label: nation.industries?.[key] || key, short: INDUSTRY[key]?.short || key,
-        color: INDUSTRY[key]?.color || "#3a4a5e", icon: industryIcon(key),
+        label: nation.industries_full?.[key] || nation.industries?.[key] || key,
+        short: nation.industries?.[key] || key, color: indColor(key), icon: industryIcon(key),
       };
     })
     .sort((a, b) => b.jobs - a.jobs);
 }
 
-/** GDP by industry (BEA CAGDP2) with shares and location quotients vs U.S. GDP shares. */
+/** GDP by industry (null in the Spanish data: returns []) with shares and location quotients vs national shares. */
 export function gdpIndustries(city, nation) {
   const g = city.gdp_by_industry;
   const ng = nation.nation.gdp_by_industry || {};
@@ -73,22 +61,47 @@ export function gdpIndustries(city, nation) {
       const share = value / total, natShare = (ng[key] || 0) / nTotal;
       return {
         key, value, share, natShare, lq: natShare > 0 ? share / natShare : null, estimated: est.has(key),
-        label: key === "government" ? "Government" : nation.industries?.[key] || key,
-        short: INDUSTRY[key]?.short || key, color: INDUSTRY[key]?.color || "#3a4a5e", icon: industryIcon(key),
+        label: nation.industries_full?.[key] || nation.industries?.[key] || key,
+        short: nation.industries?.[key] || key, color: indColor(key), icon: industryIcon(key),
       };
     })
     .sort((a, b) => b.value - a.value);
-  // What BEA still withholds after recovery, as its own grey row.
+  // What the source withholds, as its own grey row.
   const und = Number.isFinite(city.gdp_undisclosed) ? city.gdp_undisclosed
     : Object.values(g).some((v) => v == null) && Number.isFinite(city.gdp) ? Math.max(0, city.gdp - sum(g)) : 0;
   if (und > 0) {
     const missing = Object.entries(g).filter(([, v]) => v == null).map(([k]) => k);
     rows.push({
       key: "undisclosed", value: und, share: und / total, natShare: 0, lq: null, undisclosed: true, missing,
-      label: "Undisclosed by BEA", short: "Undisclosed", color: "#4a5260", icon: "lock",
+      label: "No publicado", short: "No publicado", color: "#4a5260", icon: "lock",
     });
   }
   return rows;
+}
+
+// City-wide land use: city.land when present (shares by LAND key or by world.json pct key, fractions or percents),
+// else the sum of the footprint hexes' pct shares. A group with no data stays null (never 0).
+function cityLand(city, w, footprint) {
+  const out = LAND.map((g) => ({ ...g, share: null }));
+  const raw = city.land && typeof city.land === "object" ? city.land : null;
+  if (raw) {
+    for (const g of out) {
+      const vals = [raw[g.key], ...g.keys.map((k) => raw[k])].filter((v) => Number.isFinite(v));
+      if (vals.length) g.share = g.key in raw && Number.isFinite(raw[g.key]) ? raw[g.key] : vals.reduce((a, v) => a + v, 0);
+    }
+  } else if (w.pct) {
+    for (const g of out) {
+      let tot = 0, seen = false;
+      for (const c of footprint) for (const k of g.keys) {
+        const v = w.pct[k]?.[c];
+        if (Number.isFinite(v)) { tot += v; seen = true; }
+      }
+      if (seen) g.share = tot;
+    }
+  }
+  const total = out.reduce((a, g) => a + (g.share ?? 0), 0);
+  if (!(total > 0)) return out.map((g) => ({ ...g, share: null }));
+  return out.map((g) => ({ ...g, share: g.share == null ? null : g.share / total }));
 }
 
 function landOf(w, cell) {
@@ -151,8 +164,7 @@ export function buildModel(app, city) {
     };
   });
 
-  // Industries (ACS) and GDP by industry (BEA). The map's districts are the real ones from districts.json (BLS
-  // QCEW), placed by placeDistricts() once that file arrives; until then there are none.
+  // Industries (INE) and GDP by industry. The map's districts are the real ones from districts.json, placed by placeDistricts() once that file arrives; until then there are none.
   const inds = jobIndustries(city, nation);
   const gdpInds = gdpIndustries(city, nation);
   // District plaques go on footprint hexes near the centre that have no resource site and no other city; the rest
@@ -181,10 +193,11 @@ export function buildModel(app, city) {
     const i = w.raw.states.findIndex((s) => s.abbr === abbr);
     return { abbr, index: i, name: i >= 0 ? (app.data.states?.[i]?.name || w.raw.states[i].name) : abbr };
   });
+  const land = cityLand(city, w, footprint);
   const residentsSum = tiles.reduce((a, t) => a + (t.residents || 0), 0);
 
   return {
-    city, N, nation, stateIdx, hexArea: area, stateRGB, states, footprint, mask, tiles, residentsSum,
+    city, N, nation, stateIdx, hexArea: area, stateRGB, states, footprint, mask, tiles, residentsSum, land,
     sites, siteCells, inds, gdpInds, free, districts: [], placed: [], inCity: [],
     bbox: Number.isFinite(x0) ? { x0, y0, x1, y1 } : null,
     peers,
@@ -230,8 +243,8 @@ export function resourceValue(item, type, compact) {
   if (!Number.isFinite(v)) return "";
   const u = type?.unit || "";
   if (u === "MW") return v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} GW` : `${Math.round(v)} MW`;
-  if (u === "employees") return `${compact(v)} workers`;
-  if (/tons/.test(u)) return `${compact(v)} t/yr`;
-  if (/km²/.test(u)) return `${compact(v)} km² play`;
+  if (u === "employees") return `${compact(v)} trabajadores`;
+  if (/tons/.test(u)) return `${compact(v)} t/año`;
+  if (/km²/.test(u)) return `${compact(v)} km²`;
   return `${compact(v)} ${u}`.trim();
 }

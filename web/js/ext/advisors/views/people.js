@@ -1,4 +1,4 @@
-// People advisor: population, growth, density, age and immigration.
+// People advisor: population, growth, density, mean age and foreign nationality.
 import { esc, fin, colorScale, robustDomain, RAMPS } from "../core/util.js";
 import { pct, int, signedPct, count3, fmtShort, fmtValue } from "../core/fmt.js";
 import { barList, histogram, rampLegend } from "../core/charts.js";
@@ -16,9 +16,9 @@ export function mount(ctx) {
   const yrs = n.growth_years || [];
 
   el.insertAdjacentHTML("beforeend", tiles([
-    { label: "Residents", value: count3(n.population), sub: data.vintage },
-    { label: `Growth ${yrs.join("–")}`, value: signedPct(n.growth, 2), sub: "Census estimates" },
-    { label: "Metros & micros", value: int(metros.rows.length), sub: counties ? `${int(counties.rows.length)} counties` : "" },
+    { label: "Residentes", value: count3(n.population), sub: data.vintage },
+    { label: `Crecimiento ${yrs.join("-")}`, value: signedPct(n.growth, 2), sub: "variación de la población, INE" },
+    { label: "Áreas urbanas", value: int(metros.rows.length), sub: counties ? `${int(counties.rows.length)} municipios` : "áreas urbanas funcionales" },
   ]));
 
   // --- the map: growth by default, so the map tells the same story as the first chart ---------------------------
@@ -30,16 +30,16 @@ export function mount(ctx) {
   const picker = mapPicker(ctx, mapRow, {
     value: "growth",
     options: [
-      { value: "growth", label: "Growth", lens: () => growthLens(data, gLevel) },
-      ...(counties ? [lensOpt("density", "Density", "density"), lensOpt("age", "Age", "age"), lensOpt("foreign_born", "Born abroad", "foreign_born")] : []),
-      { value: "terrain", label: "Terrain", lens: () => null },
+      { value: "growth", label: "Crecimiento", lens: () => growthLens(data, gLevel) },
+      ...(counties ? [lensOpt("density", "Densidad", "density"), lensOpt("age", "Edad media", "age"), lensOpt("foreign", "Nacionalidad extranjera", "foreign")] : []),
+      { value: "terrain", label: "Relieve", lens: () => null },
     ],
   });
 
   // --- growth ---------------------------------------------------------------------------------------------------
-  const gBody = section(el, { title: "Who is growing, who is shrinking", note: `Population change ${yrs.join("–")} from one vintage of the Census population estimates, on today's borders. Metros of ${count3(METRO_MIN)}+ people.` });
+  const gBody = section(el, { title: "Quién crece y quién pierde población", note: `Variación de la población ${yrs.join("-")} según las estimaciones del INE, con los límites actuales. Áreas urbanas de más de ${count3(METRO_MIN)} habitantes.` });
   const gHost = document.createElement("div");
-  segmented(gBody, { label: "Areas", value: gLevel, options: [{ value: "metros", label: "Metros" }, { value: "states", label: "States" }], onChange: (v) => { gLevel = v; drawGrowth(); if (picker.value === "growth") picker.refresh(); } });
+  segmented(gBody, { label: "Territorio", value: gLevel, options: [{ value: "metros", label: "Áreas urbanas" }, { value: "states", label: "Comunidades" }], onChange: (v) => { gLevel = v; drawGrowth(); if (picker.value === "growth") picker.refresh(); } });
   gBody.appendChild(gHost);
   function drawGrowth() {
     gHost.innerHTML = "";
@@ -54,30 +54,30 @@ export function mount(ctx) {
       onHover: (r) => link.hover(r ? rowsHighlight(lv, [r.row]) : null),
       onClick: (r) => lv.focus(r.row),
     };
-    gHost.insertAdjacentHTML("beforeend", `<h4 class="adv-h4">Fastest growing</h4>`);
-    barList(gHost, { ...opts, rows: mk(fast), ariaLabel: "Fastest growing" });
-    gHost.insertAdjacentHTML("beforeend", `<h4 class="adv-h4">${slow.every((x) => x.v < 0) ? "Shrinking" : "Slowest growing"}</h4>`);
-    barList(gHost, { ...opts, rows: mk(slow), ariaLabel: "Slowest growing" });
+    gHost.insertAdjacentHTML("beforeend", `<h4 class="adv-h4">Más crecimiento</h4>`);
+    barList(gHost, { ...opts, rows: mk(fast), ariaLabel: "Más crecimiento" });
+    gHost.insertAdjacentHTML("beforeend", `<h4 class="adv-h4">${slow.every((x) => x.v < 0) ? "Pierden población" : "Menos crecimiento"}</h4>`);
+    barList(gHost, { ...opts, rows: mk(slow), ariaLabel: "Menos crecimiento" });
   }
   drawGrowth();
 
   if (!counties) {
-    el.insertAdjacentHTML("beforeend", `<p class="adv-empty pad">counties.json is not built, so the county charts are missing.</p>`);
-    el.insertAdjacentHTML("beforeend", sourcesHtml(data, ["acs_1yr", "pep_population"], []));
+    el.insertAdjacentHTML("beforeend", `<p class="adv-empty pad">Faltan los datos municipales, así que no se muestran los gráficos de municipios.</p>`);
+    el.insertAdjacentHTML("beforeend", sourcesHtml(data, ["ine", "auf"], []));
     return {};
   }
 
   // --- density --------------------------------------------------------------------------------------------------
-  const dBody = section(el, { title: "How crowded", note: "Counties by residents per km² (log scale). Switch to <i>people</i> to weight each county by its population: most Americans live in the dense tail. Hover a bar to see those counties; click to keep them outlined." });
+  const dBody = section(el, { title: "Cuánta gente por kilómetro cuadrado", note: "Municipios por residentes por km² (escala logarítmica). Cambia a <i>habitantes</i> para pesar cada municipio por su población: la mayoría de los españoles vive en la cola densa. Pasa el cursor por una barra para ver esos municipios; haz clic para mantenerlos marcados." });
   const dCtl = document.createElement("div");
   dCtl.className = "adv-row";
   dBody.appendChild(dCtl);
   let weighted = false, pinnedBin = null;
-  segmented(dCtl, { label: "Count", value: "counties", options: [{ value: "counties", label: "Counties" }, { value: "people", label: "People" }], onChange: (v) => { weighted = v === "people"; drawHist(); } });
+  segmented(dCtl, { label: "Contar", value: "counties", options: [{ value: "counties", label: "Municipios" }, { value: "people", label: "Habitantes" }], onChange: (v) => { weighted = v === "people"; drawHist(); } });
   const dLens = document.createElement("button");
   dLens.type = "button";
   dLens.className = "adv-mini";
-  dLens.textContent = "Colour the map by density";
+  dLens.textContent = "Colorear el mapa por densidad";
   dLens.addEventListener("click", () => picker.set("density"));
   dCtl.appendChild(dLens);
   const histHost = document.createElement("div");
@@ -86,7 +86,7 @@ export function mount(ctx) {
   binInfo.className = "adv-brushinfo";
   dBody.appendChild(binInfo);
   let hist = null;
-  const usDensity = counties.rows.reduce((a, r) => a + (r.v.population || 0), 0) / counties.rows.reduce((a, r) => a + (r.v.land_km2 || 0), 0);
+  const esDensity = counties.rows.reduce((a, r) => a + (r.v.population || 0), 0) / counties.rows.reduce((a, r) => a + (r.v.land_km2 || 0), 0);
   const cByKey = counties.byKey;
   const densRamp = RAMPS.heat;
   function drawHist() {
@@ -95,16 +95,16 @@ export function mount(ctx) {
     const dom = [0.3, 30000];
     hist = histogram(histHost, {
       values: vals, log: true, bins: 30, domain: dom, weighted, height: 130,
-      fmt: (v) => fmtShort("float", v), unitLabel: "counties", weightFmt: (w) => `${count3(w)} people`,
-      label: "Histogram of county population density",
+      fmt: (v) => fmtShort("float", v), unitLabel: "municipios", weightFmt: (w) => `${count3(w)} habitantes`,
+      label: "Histograma de la densidad de población de los municipios",
       colorOf: (_, t) => colorScale({ type: "seq", domain: [0, 1], ramp: densRamp })(t),
-      markers: [{ v: usDensity, label: "Lower-48 average" }],
+      markers: [{ v: esDensity, label: "Media de España" }],
       onHover: (bin) => link.hover(bin ? rowsHighlight(counties, bin.keys.map((k) => cByKey.get(k)), { dim: true }) : null),
       onClick: (bin) => {
         pinnedBin = pinnedBin === bin.i ? null : bin.i;
         const rows = pinnedBin != null ? bin.keys.map((k) => cByKey.get(k)) : [];
         link.base(rows.length ? rowsHighlight(counties, rows, { dim: true }) : null, { frame: rows.length > 1 });
-        binInfo.innerHTML = rows.length ? `<b>${int(rows.length)}</b> counties of ${fmtShort("float", bin.x0)}–${fmtShort("float", bin.x1)} people/km² · ${count3(rows.reduce((a, r) => a + (r.v.population || 0), 0))} people ${frameBtn()}<button type="button" class="adv-mini" data-clear>Clear</button>` : "";
+        binInfo.innerHTML = rows.length ? `<b>${int(rows.length)}</b> municipios de ${fmtShort("float", bin.x0)}-${fmtShort("float", bin.x1)} hab./km² · ${count3(rows.reduce((a, r) => a + (r.v.population || 0), 0))} habitantes ${frameBtn()}<button type="button" class="adv-mini" data-clear>Quitar</button>` : "";
       },
     });
   }
@@ -112,24 +112,24 @@ export function mount(ctx) {
   drawHist();
 
   // --- age and foreign-born -------------------------------------------------------------------------------------
-  const aBody = section(el, { title: "Age and immigration", note: "Each dot is a county: median age across, share born abroad up, size = population, colour = density. Drag a rectangle to select counties; they light up on the map. Hover the map to find a county here." });
+  const aBody = section(el, { title: "Edad y población extranjera", note: "Cada punto es un municipio: edad media en horizontal, proporción con nacionalidad extranjera en vertical, tamaño = habitantes, color = densidad. La nacionalidad extranjera no es lo mismo que haber nacido fuera. Arrastra un rectángulo para seleccionar municipios; se iluminan en el mapa. Pasa el cursor por el mapa para encontrar un municipio aquí." });
   const aCtl = document.createElement("div");
   aCtl.className = "adv-row";
   aBody.appendChild(aCtl);
-  aCtl.innerHTML = `<span class="adv-note">Colour the map by</span><button type="button" class="adv-mini" data-map="age">median age</button><button type="button" class="adv-mini" data-map="foreign_born">born abroad</button>`;
+  aCtl.innerHTML = `<span class="adv-note">Colorear el mapa por</span><button type="button" class="adv-mini" data-map="age">edad media</button><button type="button" class="adv-mini" data-map="foreign">nacionalidad extranjera</button>`;
   aCtl.addEventListener("click", (e) => { const v = e.target.closest("[data-map]")?.dataset.map; if (v) picker.set(v); });
   const dDom = robustDomain(counties.rows.map((r) => r.v.density), 0.02, true) || [1, 2000];
   const dColor = colorScale({ type: "seq", domain: dDom, log: true, ramp: RAMPS.heat });
   const big = topBy(counties.rows, (r) => r.v.population, { n: 6 }).map((x) => x.r.key);
   const scatter = createScatter(aBody, {
     height: 310,
-    points: counties.rows.map((r) => ({ key: r.key, x: r.v.median_age, y: r.v.foreign_born, s: r.v.population, c: r.v.density, label: r.name, sub: r.sub, row: r })),
-    x: { label: "Median age", fmt: (v) => String(+v.toFixed(0)) },
-    y: { label: "Born abroad", fmt: (v) => fmtShort("pct", v) },
-    size: { label: "Population", fmt: count3, max: 14, min: 1.4 },
-    color: (c) => dColor(c), colorLabel: "Density", colorFmt: (v) => `${fmtValue("float", v)} /km²`,
+    points: counties.rows.map((r) => ({ key: r.key, x: r.v.age_mean, y: r.v.foreign, s: r.v.population, c: r.v.density, label: r.name, sub: r.sub, row: r })),
+    x: { label: "Edad media", fmt: (v) => String(+v.toFixed(0)) },
+    y: { label: "Nacionalidad extranjera", fmt: (v) => fmtShort("pct", v) },
+    size: { label: "Habitantes", fmt: count3, max: 14, min: 1.4 },
+    color: (c) => dColor(c), colorLabel: "Densidad", colorFmt: (v) => `${fmtValue("float", v)} hab./km²`,
     labels: big,
-    refX: fin(medianOf(counties.rows, "median_age")) ? [{ v: medianOf(counties.rows, "median_age"), label: "median county" }] : [],
+    refX: fin(medianOf(counties.rows, "age_mean")) ? [{ v: medianOf(counties.rows, "age_mean"), label: "municipio mediano" }] : [],
     onHover: (p) => link.hover(p ? rowsHighlight(counties, [p.row]) : null),
     onClick: (p) => counties.focus(p.row),
     onBrush: (set) => {
@@ -138,23 +138,23 @@ export function mount(ctx) {
       selInfo.innerHTML = sel.length ? selSummary(sel) : "";
     },
   });
-  aBody.insertAdjacentHTML("beforeend", rampLegend({ ramp: RAMPS.heat, domain: dDom, log: true, fmt: (v) => fmtShort("float", v), label: "People per km²" }));
+  aBody.insertAdjacentHTML("beforeend", rampLegend({ ramp: RAMPS.heat, domain: dDom, log: true, fmt: (v) => fmtShort("float", v), label: "Habitantes por km²" }));
   const selInfo = document.createElement("div");
   selInfo.className = "adv-brushinfo";
   aBody.appendChild(selInfo);
   function selSummary(sel) {
     const pop = sel.reduce((a, r) => a + (r.v.population || 0), 0);
     const top = [...sel].sort((a, b) => (b.v.population || 0) - (a.v.population || 0)).slice(0, 5);
-    return `<b>${int(sel.length)}</b> counties · ${count3(pop)} people (${pct(pop / n.population)} of the U.S.)<br><span class="sub">Largest: ${top.map((r) => `${esc(r.name)}, ${esc(r.sub)}`).join(" · ")}</span> ${frameBtn()}<button type="button" class="adv-mini" data-clear>Clear</button>`;
+    return `<b>${int(sel.length)}</b> municipios · ${count3(pop)} habitantes (${pct(pop / n.population)} de España)<br><span class="sub">Mayores: ${top.map((r) => `${esc(r.name)}, ${esc(r.sub)}`).join(" · ")}</span> ${frameBtn()}<button type="button" class="adv-mini" data-clear>Quitar</button>`;
   }
   selInfo.addEventListener("click", (e) => { if (e.target.closest("[data-clear]")) { scatter.setSelected(null); link.base(null); selInfo.innerHTML = ""; } });
 
-  el.insertAdjacentHTML("beforeend", sourcesHtml(data, ["acs_1yr", "pep_population", "acs_5yr", "census_gazetteer"], [
-    "The growth map colours metro and micro areas by their own change; grey hexes are outside them. Switch the chart to States to colour every hex by its state.",
-    `Growth uses Census population estimates; the population totals are ${esc(data.vintage)}. They are different estimates and do not divide exactly.`,
-    `County figures are ${esc(data.countyVintage)} averages (five years pooled), so they lag the 1-year metro and state numbers.`,
-    "A county's dot shows its median age; the median of a group of counties is not the average of their medians.",
-    ...(data.countiesOffMap ? [`${int(data.countiesOffMap)} of the smallest counties are smaller than one hex, so selecting them outlines nothing on the map.`] : []),
+  el.insertAdjacentHTML("beforeend", sourcesHtml(data, ["ine", "auf", "gisco_lau"], [
+    "El mapa de crecimiento colorea las áreas urbanas por su propia variación; los hexágonos grises quedan fuera de ellas. Cambia el gráfico a Comunidades para colorear todos los hexágonos por su comunidad.",
+    `El crecimiento usa las estimaciones de población del INE; los totales de población son ${esc(data.vintage)}. Son estimaciones distintas y no cuadran exactamente.`,
+    `Las cifras municipales son de ${esc(data.countyVintage)}, así que pueden ir desfasadas respecto a las de áreas urbanas y comunidades.`,
+    "La edad es la edad media del municipio (una media, no una mediana); la media de un grupo de municipios no es la media de sus medias. La nacionalidad extranjera mide el pasaporte, no el país de nacimiento.",
+    ...(data.countiesOffMap ? [`${int(data.countiesOffMap)} de los municipios más pequeños son menores que un hexágono, así que al seleccionarlos no se marca nada en el mapa.`] : []),
   ]));
 
   return {

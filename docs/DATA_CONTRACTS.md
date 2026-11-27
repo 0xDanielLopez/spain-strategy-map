@@ -148,6 +148,11 @@ urban areas (AUF), sorted by population, descending:
 * Null by design: `median_income`, `home_value`, `median_rent`, `rent_burden`, `unemployment`, `gdp_by_industry`,
   `pop_series`.
 
+* **`land`** (cities.json, states.json and nation.json): `{"forest", "crop", "developed"}` shares 0..1 of the land
+  (ESA WorldCover 2021, same groupings as world.json `pct`), summed over the member municipalities' own lattice points
+  (not over whole hexes). The points come from world.json's allocation loop (`_world` `muni_cover` = per municipality
+  `[forest, crop, developed, sampled land]` point counts). `null` when no member has a sampled point.
+
 ## states.json
 
 A list in the order of world.json `states` (the 19 autonomous communities, CCAA):
@@ -310,42 +315,29 @@ additive: oil and gas items each carry their whole play's area, so summing them 
 
 ## counties.json
 
-**Spain: not produced (F1).** The municipality explorer (`ext/advisors/core/data.js`, `views/*`) hard-codes US columns and
-labels (`state`, `cbsa`, `median_age`, `home_value`, English group names, `selectState(row.v.state)`), so a Spanish
-column set would need explorer changes. The municipality search uses world.json `counties` + `muni_cell` instead.
-
-One row per county on the map (the lower 48 + DC, world.json `counties` order), **column-oriented**:
+The municipality explorer: one row per municipality (8,132; world.json `counties` order), **column-oriented**, built by
+`pipeline/build/explorer.py`. Municipal values come from the INE interim, never from hex lenses; `null` = no data, never 0.
 
 ```jsonc
 {
-  "vintage": "ACS 2024 5-year",
-  "fields": [{"key": "population", "label": "Population", "format": "int", "unit": "people", "higher_is": "neutral",
-              "source": "acs_5yr", "description": "..."}],    // one entry per column, in column order
-  "columns": ["geoid", "name", "state", "population", "land_km2", "density", "income", "home_value", "poverty",
-              "median_age", "foreign_born", "bachelors", "broadband", "commute", "homeownership", "uninsured",
-              "forest", "crop", "pasture", "developed", "cbsa", "cell"],
-  "rows": [["01001", "Autauga County", "AL", 59285, 1539.6, 38.5, 69841, 197900, 0.11, 39.1, ...,  "33860"]]
+  "vintage": "INE: Censo anual de población 2026, renta y demografía 2024",
+  "attribution": [{"data": "...", "source": "INE ...", "license": "..."}, {"data": "...", "source": "Eurostat GISCO ...", "license": "..."}],
+  "fields": [{"key": "population", "label": "Población", "format": "int", "unit": "personas", "higher_is": "neutral",
+              "source": "ine", "description": "..."}],           // one per column, same order; texts in Spanish
+  "columns": ["geoid", "name", "state", "province", "population", "land_km2", "density", "growth", "age_mean",
+              "elderly", "foreign", "household", "income", "poverty", "higher_education", "auf", "cell"],
+  "rows": [["01001", "Alegría-Dulantzi", "PV", "01", 2981, 19.9, 149, 0.0195, 41.0, 0.135, 0.098, 2.5, 17698, 0.117, 0.4295, "ES012F", 1024]]
 }
 ```
 
-`rows[i][j]` is column `columns[j]` of county i; `fields` describes each column (`fields[j].key == columns[j]`).
-`format` is one of the lens formats plus `text` (geoid, name, state, cbsa) and `km2`; as in lenses, `pct` values are
-**0..1 fractions**. County metrics are computed exactly as the matching lenses (lens id `age` → `median_age`, `home` →
-`home_value`). `density` = ACS population ÷ Gazetteer land area (people / km²). Land shares (`forest`, `crop`,
-`pasture`, `developed`, same groupings as world.json `pct`) are the mean of the hex shares over the county's sample
-points (`_world.county_samples`: a hex counts once per sample of the county in it), `null` for small counties that no
-sample hits. `cbsa` is the cities.json id of the metro/micro area the county belongs to (OMB delineation), or `null`
-(not in a CBSA, or in one too small for ACS 1-year data and so not in cities.json). `cell` (format `int`) is a
-representative US land cell: the one nearest the county's Gazetteer centre point, in its own state where possible, so a
-county smaller than a hex can still be ringed and framed. `null` always means no data.
-
-**Faith, wellbeing, disaster and veteran columns** (`pipeline/build/counties.py` `community_fields`; `fields` describe
-each, same null rules), after `cell`, in this order: `faith` (float, adherents per 100 residents, 1 decimal; null for CT), `faith_tradition` (text: a `faith_tradition`
-category id), `amenities` (float index, 1 decimal), `mhlth` (pct, PLACES age-adjusted frequent mental distress),
-`loneliness` (pct, PLACES; null in about 845 counties of states PLACES 2025 left out), `disasters` (int, DR declarations
-since 2000-01-01, 0 = none), `veterans` (int, `B21001_002`), `veterans_pct` (pct of civilians 18+), `armed_forces` (int,
-ACS `B23025_006`), `armed_forces_pct` (pct of population 16+). A column whose source interim is missing is all null.
-Categorical county columns are `text` (the category id), not `category`.
+`format` is `text`, `int`, `float`, `pct` (**0..1 fractions**) or `eur`. `geoid` is the 5-digit INE code (string), `state`
+the CCAA abbreviation, `province` 2 digits. `population` = Censo anual de población 2026; `land_km2` = GISCO area;
+`density` = population / land_km2; `growth` = 2026 / 2021 - 1; `age_mean` is the **mean** age (not the median);
+`elderly` = share aged 65 or more; `foreign` = share with **foreign nationality** (not foreign birth); `income` = mean
+income per person (ADRH, not the median); `poverty` = share under 60 % of the median income (null where INE publishes
+none); `higher_education` = residents 15+ with higher education over residents 15+ (INE publishes it for about half
+of the municipalities, the larger ones; the rest are `null`); `auf` = cities.json id of the functional urban area, or
+`null`; `cell` = world.json `muni_cell` (representative hex).
 
 ## Optional map-layer files
 
@@ -367,140 +359,64 @@ a `check(web_dir)` (see Pipeline conventions). Shared rules:
 
 ### citizens.json (lazy)
 
-Per metro, the citizen mix for the City View's person icons, from ACS 1-year (`acs_1yr`), built by
-`pipeline/build/citizens.py`. Figures are computed in the pipeline with **largest-remainder rounding** (each row's
-figures sum exactly to its `figures` count), so the frontend only draws icons. About 950 kB: load on demand.
+Per city (and nation), three **separate** distributions of residents, built by `pipeline/build/explorer.py` from the INE
+municipal data summed over the member municipalities. Each has its own base: `age` and `nationality` over all residents,
+`education` over residents aged 15 or more. Members without data are left out of that distribution and the number of
+municipalities used is in `coverage` (education exists for about half of the municipalities: the larger ones). No
+occupations.
 
 ```jsonc
 {
-  "version": 1, "vintage": "ACS 2025 1-year", "year": 2025, "sources": ["acs_1yr"],
-  "figures": {"workforce": 20, "age": 10, "commute": 10},   // icons per row (education/nativity have no figures)
-  "rows": {"workforce": "Employed civilians 16+ by occupation", "age": "…", "commute": "…", "education": "…", "nativity": "…"},
-  "groups": {   // the categories of each row, in display order
-    "workforce": [{"key": "executive", "label": "Executives & managers", "icon": "c-executive",
-                   "lines": "C24010 004 (male lines; female = male + 36)"},
-                  {"key": "engineer"}, {"key": "scholar"}, {"key": "healer"}, {"key": "service"}, {"key": "clerk"},
-                  {"key": "farmer"}, {"key": "builder"}, {"key": "maker"}],
-    "age": [{"key": "child"}, {"key": "young"}, {"key": "midlife"}, {"key": "elder"}],
-    "commute": [{"key": "drove_alone"}, {"key": "carpool"}, {"key": "transit"}, {"key": "walk"}, {"key": "other"}, {"key": "home"}],
-    "education": [{"key": "less_than_hs"}, {"key": "high_school"}, {"key": "some_college"}, {"key": "bachelors"}, {"key": "graduate"}],
-    "nativity": [{"key": "born_in_state"}, {"key": "other_state"}, {"key": "native_abroad"}, {"key": "foreign_born"}]
-  },   // every entry has "label", "lines" and a suggested "icon" id (c-*; not yet in icons.js: fall back to a person)
-  "rule": {"specialist_high": 1.5, "specialist_low": 0.67, "min_share": 0.01, "max_high": 4, "max_low": 2, "text": "…"},
-  "national": { /* a row for the US (geos 0100000US); "specialists": [] and no "reliable" */ },
-  "cities": {"41940": { /* a row */ }}   // every cities.json id; a city absent from all five tables → null
+  "version": 1, "vintage": "INE, Censo anual de población 2024", "year": 2024, "sources": ["ine"],
+  "figures": {"age": 10, "education": 10, "nationality": 10},        // icons per distribution (largest remainder)
+  "rows": {"age": "Habitantes por edad", "education": "...", "nationality": "..."},
+  "bases": {"age": "Habitantes", "education": "Habitantes de 15 años o más", "nationality": "Habitantes"},
+  "groups": {"age": [{"key": "under65", "label": "Menores de 65 años", "icon": "c-midlife"}, {"key": "elder", ...}],
+             "education": [{"key": "other"}, {"key": "higher"}], "nationality": [{"key": "spanish"}, {"key": "foreign"}]},
+  "rule": {"text": "..."}, "attribution": [...],
+  "national": { /* a row */ },
+  "cities": {"ES001F": { /* a row */ }}
 }
-// a row:
-{
-  "workforce": {"total": 1056000, "counts": {"executive": 211000, …}, "shares": {"executive": 0.2, …},
-                "figures": {"executive": 4, …}} | null,      // null when Census left the CBSA out of C24010
-  "age": {"total": …, "counts": {…}, "shares": {…}, "figures": {…}, "median": 38.4 /* B01002_001, or null */} | null,
-  "commute": {"total": …, "counts": {…}, "shares": {…}, "figures": {…}} | null,   // workers 16+ (C08301_001)
-  "education": {"total": …, "counts": {…}, "shares": {…}, "bachelors_plus": 0.57} | null,  // adults 25+
-  "nativity": {"total": …, "counts": {…}, "shares": {…}, "foreign_born": 0.42, "born_in_state": 0.31} | null,
-  "specialists": [{"row": "workforce", "key": "engineer", "share": 0.26, "national": 0.074, "ratio": 3.5}],
-  "reliable": true   // false for micropolitan areas (1-year margins of error are large there; the UI greys them)
-}
+// a row: each distribution is null when no member has data
+{"age": {"base": "Habitantes", "total": 3500000, "counts": {"under65": 2800000, "elder": 700000},
+         "shares": {"under65": 0.8, "elder": 0.2}, "figures": {"under65": 8, "elder": 2},
+         "coverage": [240, 240], "mean": 43.9},      // coverage = [municipalities with data, members]; mean = mean age weighted by population
+ "education": {...}, "nationality": {...}, "specialists": [], "reliable": true}
 ```
 
-* `counts` are whole people (rounded estimates); `shares` = count ÷ `total`, 3 decimals; every category of a row is
-  present (a category can be 0). A row is null when Census left the CBSA out of that table (2025: 15 cities have no
-  C24010 row, 10 no C08301 row) — never zeros.
-* `specialists`: categories of any row whose share is ≥ 1.5× (up to 4, strongest first) or ≤ 0.67× (up to 2,
-  strongest first) the national share; categories under 1% both in the city and nationally are skipped as noise.
-  Ratios are computed from unrounded shares. Use them for the up/down chevrons and the "great person" call-out.
-
-Category → lines (C24010 male line, female = +36): executive 004; engineer 007; scholar 011; healer 016 + 020; service
-019 − 020; clerk 027; farmer 031; builder 030 − 031; maker 034 (they sum to `C24010_001`). Age (B01001 male, female = +24):
-child 003-006, young 007-012, midlife 013-019, elder 020-025. Commute (C08301): drove_alone 003, carpool 004, transit 008,
-walk 009, other 010, home 011 (shares of workers, not of all people). Education (C15003): less_than_hs 002-009,
-high_school 010-011, some_college 012-014, bachelors 015, graduate 016-018. Nativity (B05002): born_in_state 003,
-other_state 004, native_abroad 002 − 003 − 004, foreign_born 013. All five sums were verified to equal each table's
-total line on the national row. Labels are plain words (original names; no game's unit names).
+`counts` add up to `total` and `shares` to 1 exactly (the second share is 1 minus the first). `age.under65` / `elder` come
+from the 65+ share times population; `nationality` from the Spanish-nationality share times population (foreign
+nationality, not foreign birth); `education.higher` from residents 15+ with higher education. `specialists` is always empty.
 
 ### districts.json (lazy)
 
-Real industry specialisation from BLS QCEW annual averages (`bls_qcew`, ~40 industry slices), as strategy-game
-districts, built by `pipeline/build/districts.py`. 2025 QCEW publishes metros as totals only, so **metro values are
-sums of member counties** (cities.json `counties`), and LQ = (metro jobs in the district's NAICS ÷ metro total covered
-jobs) ÷ (the same US ratio). The total is QCEW industry 10, all ownerships. About 670 kB: load on demand.
+Sector specialisations of each city, as strategy-game districts named by CNAE section (no game's district names), built
+by `pipeline/build/explorer.py`. The jobs are **residents' jobs by place of residence** (Censo anual de población 2024),
+not where the firms are. Location quotient LQ = (city jobs in the section / city jobs in all sections) / (the same
+for Spain).
 
 ```jsonc
 {
-  "version": 1, "vintage": "BLS QCEW 2025 annual averages", "year": 2025, "sources": ["bls_qcew", "ipeds"],
-  "rule": {"min_lq": 1.25, "min_jobs": 1000, "min_share": 0.01, "specialty_lq": 3.0, "specialty_jobs": 5000, "specialty_share": 0.005, "max_per_city": 5,
-           "harbor_needs_water": true, "badge_lq": 6.0, "badge_share": 0.03, "college_share": 0.15, "text": "…(quote this in the UI)…", "county_note": "…"},
-  "catalog": [{
-    "id": "campus", "name": "Campus", "icon": "d-campus", "color": "#4a7bd0",
-    "naics": ["5417", "6113", "5415", "5132", "5182"],   // codes summed for the district's score
-    "own": [1, 2, 3, 5],                                  // QCEW ownership codes summed
-    "sub": {"5417": "Research labs", "6113": "Universities", "5132": "Software", …},  // the listed specialities
-    "badge": {"id": "scientific", "label": "Knowledge city", "labels": {"6113": "College town", "5132": "Tech city", …}},
-    "description": "…", "caveat": null        // e.g. encampment: "Civilian defense staff only; …"
-  }],
-  "industries": {"3344": {"title": "Semiconductor and other electronic component manufacturing", "us_emp": 380000}},
-  "national": {"emp": 155732363, "avg_pay": 76000},
-  "cities": {"41940": {
-    "emp": 1180000, "avg_pay": 152000, "counties": [2, 2],      // [counties with a disclosed total, member counties]
-    "top": [{"naics": "3344", "emp": 45000, "lq": 15.1, "avg_pay": 251000, "oty_pct": 0.021,
-             "suppressed": 0, "lower_bound": false}],           // up to 8 fetched industries by LQ (≥ 1,000 jobs,
-                                                                // all ownerships; the 2-digit 31_33/52/22 excluded)
-    "districts": [{"id": "campus", "lq": 2.82, "emp": 157377, "share": 0.133, "avg_pay": 190000,
-                   "sub": "5415", "sub_lq": 4.66, "sub_emp": 60000,  // strongest speciality (null if none ≥ 1,000 jobs, LQ > 1)
-                   "sub_lower_bound": false,  // the speciality's own value is a lower bound (show ≥)
-                   "via": "broad",            // "broad" (the district passes) | "specialty" (only a speciality does)
-                   "strength": 101000,        // jobs above the national norm, emp − emp/LQ: the ranking key
-                   "suppressed": 2, "lower_bound": true}],   // passing the rule, strongest first, ≤ 5
-    "badge": {"id": "scientific", "label": "Tech city", "district": "campus", "basis": "qcew",
-              "text": "Computer services: 4.7× the national share of jobs"}  // "≥4.7×" when a lower bound;
-                                                    // "Seat of government"/"Capital city" only for capital metros
-           | {"id": "scientific", "label": "College town", "district": "campus", "basis": "ipeds", "withheld": true,
-              "text": "Pennsylvania State University: R1 research university enrolment equal to 34% …"}
-           | null
-  } | null},                                                    // null: no member county has QCEW data
-  "counties": {"06085": {"emp": 1100000, "districts": [["campus", 2.9, 150000]]}}  // [id, lq, emp], same rule
-}                                                               // (no Harbor water test), every county with a total
+  "version": 1, "vintage": "INE, Censo anual de población 2024", "year": 2024, "sources": ["ine_jobs", "auf"],
+  "note": "Especialización de la población ocupada según dónde vive (...): cociente de localización frente a España. No mide dónde están las empresas.",
+  "rule": {"min_lq": 1.25, "min_jobs": 1000, "min_share": 0.01, "max_per_city": 5, "excluded": ["T", "U"], "text": "..."},
+  "catalog": [{"id": "a", "name": "Agricultura, ganadería y pesca", "icon": "i-agriculture", "color": "#7fbf3f",
+               "sections": ["A"], "sub": {}, "badge": {"id": "a", "label": "Ciudad agraria", "labels": {}},
+               "description": "...", "caveat": null}],        // one entry per section id "a".."s" (not t, u); icon = "i-" + web/js/industry.js iconKey
+  "industries": {"a": {"title": "Agricultura, ganadería y pesca", "us_emp": null, "emp": 829713}},
+  "national": {"emp": 21000000, "avg_pay": null},
+  "cities": {"ES001F": {"emp": 3387488,                       // city jobs over all sections
+                        "districts": [{"id": "j", "lq": 2.08, "emp": 242273, "share": 0.0715, "strength": 125000,
+                                       "via": "broad", "sub": null, "lower_bound": false, "suppressed": 0}],
+                        "badge": {"id": "j", "label": "Ciudad digital", "district": "j", "basis": "census", "text": "..."} | null}},
+  "attribution": [...]
+}
 ```
 
-Districts (fixed ids, in this order; NAICS 2022):
-
-| id | name | summed NAICS (own) | specialities (`sub`) | badge id |
-|---|---|---|---|---|
-| campus | Campus | 5417, 6113, 5415, 5132, 5182 (all) | research labs, universities, software, computer services, data hosting | scientific |
-| commercial_hub | Commercial hub | 52 (all) | 5231 securities, 524 insurance | commercial |
-| industrial_zone | Industrial zone | 31-33, 211, 2121 (all) | 3361 autos, 3344 chips, 3254 pharma, 3241 refining, 331 metals, 211 oil & gas, 2121 coal | industrial |
-| harbor | Harbor | 483, 4883 (all) | shipping lines, port services | maritime |
-| theater_square | Theater square | 711, 512, 516 (all) | arts & sports, film, broadcasting | cultural |
-| entertainment_complex | Entertainment complex | 713, 721 (all) | 7132 casinos, 713 amusement, 721 hotels | entertainment |
-| aerodrome | Aerodrome | 481, 4881, 3364 (all) | airlines, airport services, aerospace | aviation |
-| government_plaza | Government plaza | 921-927 (federal, state) | offices, courts/police/prisons, benefits, economic agencies, 927 space | governmental |
-| encampment | Encampment | 928110 (federal, state) | defense civilians | militaristic |
-| aqueduct | Aqueduct & dam | 22 (all) | 2211 power, 2213 water | utility |
-
-* **Rule** (also in `rule.text`): a district appears when its summed LQ ≥ 1.25 and it has ≥ 1,000 jobs or ≥ 1% of the
-  metro's jobs (`via: "broad"`), or when one of its specialities has LQ ≥ 3 with ≥ 1,000 jobs (`via: "specialty"`, e.g.
-  Houston's oil and gas inside an average-sized Industrial zone: `lq` is then below 1.25). Districts are ranked by
-  `strength` (jobs above the national norm, the larger of the district's and its qualifying speciality's), so a small,
-  extreme speciality does not outrank what most of a city does; up to 5. Harbor needs a footprint hex that is water or
-  next to water, or that a world.json river crosses.
-* **Badge** = the strongest district's `badge`, unless a listed district has LQ ≥ `badge_lq` (6) and ≥ `badge_share`
-  (3%) of the metro's jobs, in which case the strongest such district (Huntsville, Alamogordo: Military town). So
-  `badge.district` is one of the city's `districts`, not always the first. The label is the speciality's nickname
-  (`labels[sub]`) when that speciality has LQ ≥ 3, else the district's generic nickname — one vocabulary of nicknames:
-  Knowledge city, Finance city, Factory town, Port city, Arts city, Resort city, Air hub, Government town, Military
-  town, Utility town. A Government plaza in the national capital (cities.json `capital`) is "Capital city".
-  `basis: "ipeds"`: when no Campus district passes because BLS withheld some of a member county's Campus rows, and R1
-  universities' IPEDS 12-month enrolment is ≥ `college_share` (15%) of the metro's population, the badge is
-  "College town" (`district: "campus"`, `withheld: true`; the campus is *not* in `districts`; State College, Ithaca,
-  Champaign, Ames …). null when no district passes and no such rule applies ("diversified").
-* Suppressed county rows (`disclosure_code` N, published as 0) are left out of the sums: `suppressed` = how many member
-  counties had a withheld part of that value, `lower_bound` = suppressed > 0 (the UI shows "≥"). A value with no
-  disclosed county at all is null, never 0. Big single employers are often withheld (e.g. the University of Michigan in
-  Ann Arbor, Penn State), so Campus undercounts some college towns.
-* Encampment here is QCEW NAICS 928110 (civilian DoD staff and state Guard employees). Uniformed troops come from
-  military.json `cities`: the City View shows an Encampment when either file has one, with military.json's tier label.
-* QCEW leaves out the self-employed, most farm workers, railroads and uniformed military; jobs are counted where the
-  employer's establishment is, not where workers live.
+* **Rule**: a section (not T or U) appears when LQ >= 1.25 and it has at least 1,000 jobs or 1 % of the city's jobs;
+  `strength` = jobs - jobs / LQ; sorted by strength, up to 5; an empty `districts` list is allowed.
+* **Badge** = the top specialisation (its id is also `district`), or `null` when the city has none. `basis` is always
+  `census`. `sub`, `lower_bound` and `suppressed` are kept for the web code but are always `null` / `false` / `0`.
 
 ### infrastructure.json (eager)
 

@@ -385,6 +385,21 @@ def population_of(codes, ine_m: dict) -> int:
 # ---------------------------------------------------------------- build
 
 
+def land_of(codes, index: dict, muni_cover) -> dict | None:
+    """Land-cover shares of a set of municipalities from WorldCover points [forest, crop, developed, sampled land]
+    summed over the member municipalities (never over whole hexes). None when no member has a sampled point."""
+    if not muni_cover:
+        return None
+    tot = [0, 0, 0, 0]
+    for c in codes:
+        row = muni_cover[index[c]] if c in index else None
+        if row:
+            tot = [a + b for a, b in zip(tot, row)]
+    if not tot[3]:
+        return None
+    return {"forest": round(tot[0] / tot[3], 4), "crop": round(tot[1] / tot[3], 4), "developed": round(tot[2] / tot[3], 4)}
+
+
 def core_xy(rings: list, proj: MapProjection) -> tuple[float, float]:
     """Map km of the centroid of the largest projected ring (inset-aware, as world.py projects rings)."""
     projected = [proj.project_ring(r) for r in rings]
@@ -404,6 +419,7 @@ def build() -> None:
     proj = MapProjection(**world["projection"])
     grid = HexGrid(**world["grid"])
     owner = world["owner"]
+    muni_cover = world.get("muni_cover")
     codes = world["counties"]
     index = {c: i for i, c in enumerate(codes)}
     muni = {m["code"]: m for m in lau["municipalities"]}
@@ -446,7 +462,7 @@ def build() -> None:
             "home_value": None, "median_rent": None, "rent_burden": None, "unemployment": None,
             "gdp": gdp, "gdp_year": year, "gdp_estimated": True, "gdp_by_industry": None,
             "growth": growth_of(members, ine_m), "growth_years": GROWTH_YEARS,
-            "pop_series": None, "counties": sorted(members),
+            "pop_series": None, "counties": sorted(members), "land": land_of(members, index, muni_cover),
         })
         states_of[a["id"]] = (ccaa_index[muni[core]["ccaa"]], {ccaa_index[muni[m]["ccaa"]] for m in members})
     cities.sort(key=lambda c: -c["population"])
@@ -483,6 +499,7 @@ def build() -> None:
             "home_value": None, "median_rent": None, "rent_burden": None, "unemployment": None,
             "gdp": gdp, "gdp_year": year, "gdp_estimated": False, "gdp_by_industry": None,
             "growth": growth_of(members_of[s], ine_m), "growth_years": GROWTH_YEARS, "label": None,
+            "land": land_of(members_of[s], index, muni_cover),
         })
     add_ranks(states)
 
@@ -493,6 +510,7 @@ def build() -> None:
                    "science": nat["yields"]["science"], "culture": nat["yields"]["culture"]},
         "income_per_person": income_of(codes, ine_m), "median_income": None,
         "gdp": gdp_doc["national"], "gdp_year": year, "growth": growth_of(codes, ine_m), "growth_years": GROWTH_YEARS,
+        "land": land_of(codes, index, muni_cover),
     }
     write_web("cities.json", cities)
     write_web("states.json", states)

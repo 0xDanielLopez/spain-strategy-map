@@ -1,11 +1,11 @@
-// City View: a Civ-style city screen as an app mode ("city").
+// City View ("Vista de ciudad"): a 4X-style city screen as an app mode ("city").
 //
 //   * Clicking a city on the map opens it directly; the quick city panel (search, reports, state lists) gets an
 //     "Open City View" button. Esc or the ✕ leaves it and flies back to the camera from before.
 //   * URL: #city=<id>&view=city round-trips (the "view" hash key); Back leaves the view.
 //   * Map: the metro footprint is outlined in its state colour with a glow, the rest is dimmed; each hex shows
-//     estimated residents and its main land use; the metro's resource sites are labelled; its real districts
-//     (districts.json, BLS QCEW, plus military.json's Encampment) stand on nearby hexes at schematic positions.
+//     estimated residents and its main land use; the metro's resource sites are labelled; its specialisations
+//     (districts.json, INE jobs by CNAE section) stand on nearby hexes at schematic positions.
 //   * Screen: a right-hand dock (a bottom sheet on phones), see screen.js.
 //   * Banners: zoomed in, the banners that show their yield row also carry the city-type badge (districts.json),
 //     handed to render/banners.js as app.state.cityBadges; districts.json loads the first time the map is zoomed in
@@ -19,6 +19,7 @@ import { icon } from "../../ui/icon.js";
 import { esc } from "../../format.js";
 
 const MODE = "city";
+const TIP_OPEN = "Haz clic para abrir la ciudad"; // must match the core tooltip text (main.js)
 const CSS_HREF = new URL("../../../css/cityview.css", import.meta.url).href;
 
 // The stylesheet, injected once; resolves when it has loaded (or after a short timeout), so a City View opened
@@ -56,21 +57,21 @@ export async function install(app) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "cv-open";
-    b.innerHTML = `<span class="cv-open-ic" aria-hidden="true">${icon("layers", "▦", { size: 15 })}</span><span>Open City View</span><span class="cv-open-go" aria-hidden="true">›</span>`;
-    b.title = `Open ${city.name} in the City View: its metro on the map, citizens, economy, workforce, resources and peers`;
+    b.innerHTML = `<span class="cv-open-ic" aria-hidden="true">${icon("layers", "▦", { size: 15 })}</span><span>Abrir vista de ciudad</span><span class="cv-open-go" aria-hidden="true">›</span>`;
+    b.title = `Abrir ${city.name} en la vista de ciudad: su área urbana en el mapa, habitantes, economía, empleo y áreas urbanas comparables`;
     b.onclick = () => openCityView(city);
     head.appendChild(b);
     addDistrictsLink(panel, city);
   }
 
-  // The quick panel's industry list (ACS C24030: where residents work) is not the City View's Districts (BLS QCEW:
-  // industries concentrated in the metro's own jobs). A line under it says so and opens the Districts tab.
+  // A line under the quick panel's sector list: the specialisations are residents' sectors by place of residence
+  // (INE), shown in the "Especializaciones" tab, which the button opens.
   function addDistrictsLink(panel, city) {
-    const sec = [...panel.querySelectorAll(".cp-section")].find((s) => /where (people|residents) work/i.test(s.querySelector("h3")?.textContent || ""));
+    const sec = [...panel.querySelectorAll(".cp-section")].find((s) => /sectores/i.test(s.querySelector("h3")?.textContent || ""));
     if (!sec || sec.querySelector(".cv-plink")) return;
     const p = document.createElement("p");
     p.className = "cv-plink";
-    p.innerHTML = `These are residents' industries (ACS). The metro's specialised districts, from jobs counted at employers (BLS QCEW), are in the City View. <button type="button">Districts ›</button>`;
+    p.innerHTML = `Las especializaciones son los sectores de los residentes según su lugar de residencia (INE) y se muestran en la pestaña «Especializaciones». <button type="button">Especializaciones ›</button>`;
     p.querySelector("button").onclick = () => openCityView(city, { section: "districts" });
     sec.appendChild(p);
   }
@@ -121,7 +122,7 @@ export async function install(app) {
     cv.pinned = -1;
     layer.focus(-1);
 
-    cv.dock = app.ui.dock("right", { width: dockWidth(), label: `City View: ${city.name}` });
+    cv.dock = app.ui.dock("right", { width: dockWidth(), label: `Vista de ciudad: ${city.name}` });
     if (!same) {
       render(cv.dock, m, {
         onClose: () => leave(true),
@@ -210,15 +211,15 @@ export async function install(app) {
     }
     const col = `rgb(${m.stateRGB.map((v) => v | 0).join(",")})`;
     const n = m.footprint.length;
-    cv.legend.setAttribute("aria-label", `${m.city.name} metro on the map`);
+    cv.legend.setAttribute("aria-label", `Área urbana de ${m.city.name} en el mapa`);
     cv.legend.innerHTML = `
-      <div class="cv-ml-t"><i class="cv-ml-sw" style="--sc:${col}"></i><b title="${esc(m.city.full || m.city.name)}">${esc(m.city.name)}</b><span class="cv-ml-k">· ${n} hex${n === 1 ? "" : "es"}</span><button type="button" class="cv-ml-i" aria-controls="cv-ml-body" title="Map key">i</button></div>
-      <div class="cv-ml-sch">${icon("layers", "▦", { size: 11 })}District positions are schematic</div>
+      <div class="cv-ml-t"><i class="cv-ml-sw" style="--sc:${col}"></i><b title="${esc(m.city.full || m.city.name)}">${esc(m.city.name)}</b><span class="cv-ml-k">· ${n} ${n === 1 ? "hexágono" : "hexágonos"}</span><button type="button" class="cv-ml-i" aria-controls="cv-ml-body" title="Leyenda del mapa">i</button></div>
+      <div class="cv-ml-sch">${icon("layers", "▦", { size: 11 })}Las posiciones de las especializaciones son esquemáticas</div>
       <div class="cv-ml-body" id="cv-ml-body">
-        <div class="cv-ml-r"><span class="cv-ml-pill">${icon("pop", "👥", { size: 11 })}≈</span>residents per hex <small>(density × area)</small></div>
-        <div class="cv-ml-r"><span class="cv-ml-pill">${icon("l-developed", "▦", { size: 11 })}%</span>main land use</div>
-        <div class="cv-ml-r"><span class="cv-ml-hex" aria-hidden="true"></span>districts: real specialisations <small>(BLS QCEW)</small></div>
-        <p class="cv-ml-n">The districts are real (industries with a high share of the metro's jobs), but their positions are schematic: they are not where the jobs are.</p>
+        <div class="cv-ml-r"><span class="cv-ml-pill">${icon("pop", "👥", { size: 11 })}≈</span>residentes por hexágono <small>(densidad × superficie, estimación)</small></div>
+        <div class="cv-ml-r"><span class="cv-ml-pill">${icon("l-developed", "▦", { size: 11 })}%</span>uso del suelo principal</div>
+        <div class="cv-ml-r"><span class="cv-ml-hex" aria-hidden="true"></span>especializaciones: sectores de los residentes <small>(INE, por lugar de residencia)</small></div>
+        <p class="cv-ml-n">Las especializaciones son reales (sectores con un peso alto en el empleo de los residentes del área urbana), pero sus posiciones son esquemáticas: no indican dónde están los empleos.</p>
       </div>`;
     setLegendOpen(legendOpen ?? false);
   }
@@ -228,7 +229,7 @@ export async function install(app) {
     const b = cv.legend.querySelector(".cv-ml-i");
     if (b) {
       b.setAttribute("aria-expanded", open ? "true" : "false");
-      b.setAttribute("aria-label", open ? "Hide the map key" : "Show the map key");
+      b.setAttribute("aria-label", open ? "Ocultar la leyenda del mapa" : "Mostrar la leyenda del mapa");
     }
   }
 
@@ -278,7 +279,7 @@ export async function install(app) {
     cv.timer = 0;
   }
 
-  // The hover tooltip says "Click to open the city"; inside the City View that is wrong for the open city (it is
+  // The hover tooltip says "Haz clic para abrir la ciudad"; inside the City View that is wrong for the open city (it is
   // already open: the line goes) and for its neighbours (a click switches the view). The tooltip belongs to the
   // core, so this rewrites its line after the core has drawn it.
   let hoverCity = null;
@@ -288,13 +289,13 @@ export async function install(app) {
     const tip = document.getElementById("tooltip");
     if (!tip) return;
     for (const s of tip.querySelectorAll("span.muted")) {
-      if (s.textContent !== "Click to open the city") continue;
+      if (s.textContent !== TIP_OPEN) continue;
       if (hoverCity === cv.city) {
         const br = s.previousSibling;
         if (br && br.nodeName === "BR") br.remove();
         s.remove();
       } else {
-        s.textContent = "Click to open its City View";
+        s.textContent = "Haz clic para abrir su vista de ciudad";
       }
     }
   });
@@ -440,7 +441,7 @@ export async function install(app) {
   addEventListener("resize", () => {
     clearTimeout(rz);
     rz = setTimeout(() => {
-      if (app.mode === MODE && cv.dock && !app.isMobile()) app.ui.dock("right", { width: dockWidth(), label: `City View: ${cv.city?.name || ""}` });
+      if (app.mode === MODE && cv.dock && !app.isMobile()) app.ui.dock("right", { width: dockWidth(), label: `Vista de ciudad: ${cv.city?.name || ""}` });
     }, 150);
   });
 

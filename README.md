@@ -11,7 +11,7 @@ EE. UU. por datos abiertos de España y de Europa.
 
 ## Estado
 
-Fases F0 (mapa base), F1 (lentes del INE) y F2 (ciudades).
+Fases F0 (mapa base), F1 (lentes del INE), F2 (ciudades) y F4 (Consejeros y vista de ciudad).
 
 - Hexágonos de 10 km de radio (unos 260 km2 cada uno, unos 1.950 de tierra en España).
 - Tierra y agua, relieve (llano, colinas, montañas, picos) y cobertura del suelo en cada hexágono.
@@ -28,8 +28,13 @@ Fases F0 (mapa base), F1 (lentes del INE) y F2 (ciudades).
   por sector y cinco rendimientos (comida, producción, ciencia, cultura y oro). Las 19 comunidades tienen los mismos
   datos.
 
-Todavía no hay recursos, infraestructura ni vista de ciudad. Los Consejeros están ocultos hasta adaptarlos a los
-datos de España.
+- Vista de ciudad: el área urbana en el mapa, sus habitantes (edad, estudios, nacionalidad), especializaciones
+  (sectores con más peso que en España entre los ocupados que viven allí), economía, empleo y áreas comparables.
+- Cinco Consejeros: economía, población, formación y perfil profesional, territorio y un explorador de ciudades,
+  comunidades y municipios.
+
+Todavía no hay recursos ni infraestructura (fase F3), así que los Consejeros de energía, comercio, cultura, defensa y
+prosperidad están ocultos.
 
 ### Rendimientos de las ciudades
 

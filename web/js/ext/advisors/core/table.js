@@ -1,4 +1,4 @@
-// Sortable, searchable, virtualised data table (handles all 3,100 counties smoothly).
+// Sortable, searchable, virtualised data table (virtualised, plus a "Mostrar más" cap, so 8,132 municipalities stay light).
 //
 // createTable(host, opts) → {setRows(rows), setColumns(cols), setHot(key, scroll), setSelected(Set|null), destroy, el}
 // opts:
@@ -9,7 +9,8 @@
 //   Left-aligned cells get a tooltip with their full text (for a name column: "name, sub" with row.full).
 //   rows, rowKey(row) = row.key, sort: {key, dir: "asc"|"desc"}, maxHeight = 340, rowH = 28,
 //   search: placeholder text (adds a name filter), searchText(row) = row.name, rank (show the position)
-//   onHover(row|null), onClick(row), caption (aria label), empty (text when no rows)
+//   onHover(row|null), onClick(row), caption (aria label), empty (text when no rows),
+//   pageSize (rows rendered before "Mostrar más"; default 500, 0 = no cap)
 import { esc, fin, rafThrottle, onWidth } from "./util.js";
 
 export function createTable(host, opts) {
@@ -23,13 +24,17 @@ export function createTable(host, opts) {
   let sort = opts.sort || null;
   let query = "";
   let hot = null, sel = null;
+  const pageSize = opts.pageSize ?? 500;
+  let limit = pageSize || Infinity; // rows shown so far; "Mostrar más" raises it
+  const shown = () => Math.min(view.length, limit);
   const keyOf = opts.rowKey || ((r) => r.key);
 
   const root = document.createElement("div");
   root.className = "adv-table";
   root.innerHTML = `${opts.search ? `<div class="adv-tsearch"><input type="search" placeholder="${esc(opts.search)}" aria-label="${esc(opts.search)}" spellcheck="false"><span class="cnt"></span></div>` : ""}
     <div class="adv-thead" role="row"></div>
-    <div class="adv-tbody" role="rowgroup" tabindex="-1"><div class="adv-tspace"></div></div>`;
+    <div class="adv-tbody" role="rowgroup" tabindex="-1"><div class="adv-tspace"></div></div>
+    <div class="adv-tmore" hidden><button type="button" class="adv-mini"></button></div>`;
   root.setAttribute("role", "table");
   root.setAttribute("aria-label", opts.caption || "Tabla de datos");
   host.appendChild(root);
@@ -40,6 +45,8 @@ export function createTable(host, opts) {
   const space = root.querySelector(".adv-tspace");
   const input = root.querySelector(".adv-tsearch input");
   const cnt = root.querySelector(".adv-tsearch .cnt");
+  const more = root.querySelector(".adv-tmore");
+  const moreBtn = more.querySelector("button");
 
   const template = () => `${opts.rank ? "26px " : ""}${cols.map((c) => c.width || (c.align === "l" ? "minmax(0,1.6fr)" : "minmax(0,1fr)")).join(" ")}`;
 
@@ -48,7 +55,7 @@ export function createTable(host, opts) {
     head.innerHTML = `${opts.rank ? `<span class="th r" role="columnheader">#</span>` : ""}${cols.map((c) => {
       const s = sort?.key === c.key ? sort.dir : null;
       return `<span class="th ${c.align === "l" ? "l" : "r"}" role="columnheader" aria-sort="${s === "asc" ? "ascending" : s === "desc" ? "descending" : "none"}">
-        <button type="button" data-sort="${esc(c.key)}" title="${esc(c.title || `Sort by ${c.label}`)}">${c.short ? c.short : esc(c.label)}${s ? `<span class="arr" aria-hidden="true">${s === "asc" ? "▲" : "▼"}</span>` : ""}</button></span>`;
+        <button type="button" data-sort="${esc(c.key)}" title="${esc(c.title || `Ordenar por ${c.label}`)}">${c.short ? c.short : esc(c.label)}${s ? `<span class="arr" aria-hidden="true">${s === "asc" ? "▲" : "▼"}</span>` : ""}</button></span>`;
     }).join("")}`;
   }
 
@@ -69,10 +76,13 @@ export function createTable(host, opts) {
       });
     }
     if (cnt) cnt.textContent = `${view.length.toLocaleString("es-ES")} de ${all.length.toLocaleString("es-ES")}`;
+    const nShown = shown();
     const maxH = opts.maxHeight || 340;
-    const h = Math.min(maxH, Math.max(rowH * 2, view.length * rowH + 2));
+    const h = Math.min(maxH, Math.max(rowH * 2, nShown * rowH + 2));
     body.style.height = `${h}px`;
-    space.style.height = `${view.length * rowH}px`;
+    space.style.height = `${nShown * rowH}px`;
+    more.hidden = nShown >= view.length;
+    if (!more.hidden) moreBtn.textContent = `Mostrar más (${(view.length - nShown).toLocaleString("es-ES")} restantes)`;
     renderRows(true);
   }
 
@@ -80,7 +90,7 @@ export function createTable(host, opts) {
   function renderRows(force = false) {
     const top = body.scrollTop, h = body.clientHeight || parseFloat(body.style.height) || 300;
     const a = Math.max(0, Math.floor(top / rowH) - 6);
-    const b = Math.min(view.length, Math.ceil((top + h) / rowH) + 6);
+    const b = Math.min(shown(), Math.ceil((top + h) / rowH) + 6);
     if (!force && a === drawn.a && b === drawn.b) return;
     drawn = { a, b };
     let html = "";
@@ -89,7 +99,7 @@ export function createTable(host, opts) {
       const k = String(keyOf(r));
       const cls = `adv-tr${k === String(hot) ? " hot" : ""}${sel?.has(keyOf(r)) ? " sel" : ""}`;
       html += `<div class="${cls}" role="row" data-i="${i}" data-key="${esc(k)}" tabindex="-1" style="top:${i * rowH}px;height:${rowH}px">${opts.rank ? `<span class="td r rk" role="cell">${i + 1}</span>` : ""}${cols.map((c) => {
-        let inner = c.html ? c.html(r) : esc(c.text ? c.text(r) : r[c.key] ?? "–");
+        let inner = c.html ? c.html(r) : esc(c.text ? c.text(r) : r[c.key] ?? "Sin dato");
         if (c.bar) {
           const v = (c.value || ((x) => x[c.key]))(r);
           const wpc = fin(v) && c.bar.max > 0 ? Math.max(0, Math.min(1, Math.abs(v) / c.bar.max)) * 100 : 0;
@@ -99,9 +109,10 @@ export function createTable(host, opts) {
         return `<span class="td ${c.align === "l" ? "l" : "r"}${c.bar ? " hasbar" : ""}" role="cell"${tip ? ` title="${esc(tip)}"` : ""}>${inner}</span>`;
       }).join("")}</div>`;
     }
-    space.innerHTML = html || `<div class="adv-empty pad">${esc(opts.empty || "No rows.")}</div>`;
+    space.innerHTML = html || `<div class="adv-empty pad">${esc(opts.empty || "Sin filas.")}</div>`;
   }
 
+  moreBtn.addEventListener("click", () => { limit += pageSize || 0; compute(); });
   body.addEventListener("scroll", rafThrottle(() => renderRows()), { passive: true });
   head.addEventListener("click", (e) => {
     const b = e.target.closest("[data-sort]");
@@ -110,10 +121,11 @@ export function createTable(host, opts) {
     const c = cols.find((x) => x.key === k);
     sort = sort?.key === k ? { key: k, dir: sort.dir === "desc" ? "asc" : "desc" } : { key: k, dir: c?.align === "l" ? "asc" : "desc" };
     renderHead();
+    limit = pageSize || Infinity;
     compute();
     head.querySelector(`[data-sort="${CSS.escape(k)}"]`)?.focus();
   });
-  input?.addEventListener("input", () => { query = input.value; body.scrollTop = 0; compute(); });
+  input?.addEventListener("input", () => { query = input.value; body.scrollTop = 0; limit = pageSize || Infinity; compute(); });
 
   let hovered = null;
   const rowFromEvent = (e) => {
@@ -142,9 +154,10 @@ export function createTable(host, opts) {
   body.setAttribute("aria-label", `${opts.caption || "Tabla"}: usa las flechas para moverte entre filas y Intro para abrir una`);
   body.addEventListener("keydown", (e) => {
     if (!view.length) return;
+    const last = shown() - 1;
     let i = view.findIndex((r) => String(keyOf(r)) === String(hot));
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      i = e.key === "ArrowDown" ? Math.min(view.length - 1, i + 1) : Math.max(0, i - 1);
+      i = e.key === "ArrowDown" ? Math.min(last, i + 1) : Math.max(0, i - 1);
       setHotKey(keyOf(view[i]), true);
       opts.onHover?.(view[i]);
       e.preventDefault();
@@ -161,7 +174,7 @@ export function createTable(host, opts) {
     space.querySelectorAll(".adv-tr.hot").forEach((n) => n.classList.remove("hot"));
     if (key == null) return;
     const i = view.findIndex((r) => String(keyOf(r)) === String(key));
-    if (i < 0) return;
+    if (i < 0 || i >= shown()) return;
     if (scroll) {
       const top = i * rowH, h = body.clientHeight;
       if (top < body.scrollTop) body.scrollTop = top;
@@ -185,11 +198,11 @@ export function createTable(host, opts) {
 
   return {
     el: root,
-    setRows(rows) { all = rows || []; compute(); },
-    setColumns(c, s) { allCols = c; cols = visibleCols(); if (s !== undefined) sort = s; renderHead(); compute(); },
+    setRows(rows) { all = rows || []; limit = pageSize || Infinity; compute(); },
+    setColumns(c, s) { allCols = c; cols = visibleCols(); if (s !== undefined) sort = s; limit = pageSize || Infinity; renderHead(); compute(); },
     setHot(key, scroll = true) { if (!hovered) setHotKey(key, scroll); },
     setSelected(set) { sel = set && set.size ? set : null; renderRows(true); },
-    get rows() { return view; },
+    get rows() { return view.slice(0, shown()); },
     destroy() { stopW(); root.remove(); },
   };
 }

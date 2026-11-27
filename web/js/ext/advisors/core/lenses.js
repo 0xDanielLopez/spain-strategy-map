@@ -1,4 +1,4 @@
-// Map colourings the advisors add beside the built-in lenses (lenses.json has no growth or science-jobs lens).
+// Map colourings the advisors add beside the built-in lenses (growth by urban area or community, science jobs).
 // Each is an ordinary lens object ({id, name, ramp, domain, scale, format, values: per cell}) that app.setLens()
 // accepts; they are built once per data model and cached, so the lens dock's histogram cache stays valid.
 import { fin, quantile } from "./util.js";
@@ -27,7 +27,7 @@ const robust = (vals, q = 0.02) => {
   return s.length ? [quantile(s, q), quantile(s, 1 - q)] : [0, 1];
 };
 
-/** Population growth per hex: by metro / micro area (other hexes grey) or by state. */
+/** Population growth per hex: by functional urban area (other hexes grey) or by autonomous community. */
 export function growthLens(data, by = "metros") {
   return memo(data, `growth-${by}`, () => {
     const { app, cellMetro } = data;
@@ -44,18 +44,18 @@ export function growthLens(data, by = "metros") {
       vals = data.levels.metros.rows.map((r) => r.v.growth);
     }
     return {
-      id: `adv-growth-${by}`, group: "people", name: by === "states" ? "Growth by state" : "Growth by metro",
-      icon: "l-people", emoji: "📈", unit: "population change", format: "pct", scale: "linear",
-      domain: symDomain(vals), ramp: GROWTH_RAMP, higher_is: "neutral", source: "pep_population",
+      id: `adv-growth-${by}`, group: "people", name: by === "states" ? "Crecimiento por comunidad" : "Crecimiento por área urbana",
+      icon: "l-people", emoji: "📈", unit: "variación de la población", format: "pct", scale: "linear",
+      domain: symDomain(vals), ramp: GROWTH_RAMP, higher_is: "neutral", source: "ine",
       description: by === "states"
-        ? `Population change ${yrs} by state (Census population estimates).`
-        : `Population change ${yrs} by metro and micro area (Census population estimates). Grey hexes lie outside them.`,
+        ? `Variación de la población ${yrs} por comunidad autónoma (INE).`
+        : `Variación de la población ${yrs} por área urbana funcional (INE). Los hexágonos grises quedan fuera de ellas.`,
       values,
     };
   });
 }
 
-/** Science-yield workers as a share of employed residents, per metro / micro area (other hexes grey). */
+/** Science-yield workers as a share of employed residents, per functional urban area (other hexes grey). */
 export function scienceLens(data) {
   return memo(data, "science", () => {
     const { app, cellMetro } = data;
@@ -65,18 +65,18 @@ export function scienceLens(data) {
     for (const [cell, city] of cellMetro) if (owner[cell] >= 0) values[cell] = share(city);
     const sci = app.data.nation?.yields?.find((y) => y.key === "science");
     return {
-      id: "adv-science-share", group: "knowledge", name: "Science jobs",
-      icon: "l-degrees", emoji: "🔬", unit: "of employed residents", format: "pct", scale: "linear",
-      domain: robust(data.levels.metros.rows.map((r) => share(r.ref))), ramp: SCIENCE_RAMP, higher_is: "neutral", source: "acs_1yr",
-      description: `${sci?.label || "Science"} workers as a share of employed residents, by metro and micro area (counted where they live). Grey hexes lie outside them.`,
+      id: "adv-science-share", group: "knowledge", name: "Empleo en ciencia",
+      icon: "l-degrees", emoji: "🔬", unit: "de los ocupados residentes", format: "pct", scale: "linear",
+      domain: robust(data.levels.metros.rows.map((r) => share(r.ref))), ramp: SCIENCE_RAMP, higher_is: "neutral", source: "ine_jobs",
+      description: `Ocupados en ${(sci?.label || "ciencia").toLowerCase()} como parte de los ocupados residentes de cada área urbana funcional (contados donde viven). Los hexágonos grises quedan fuera de ellas.`,
       values,
     };
   });
 }
 
 /**
- * A county column as a map lens (each hex takes the value of the county at its centre). For counties.json columns
- * that have no lens in lenses.json (e.g. armed-forces share). opts: {name, ramp, format, unit, description, source,
+ * A municipality column as a map lens (each hex takes the value of the municipality at its centre). For counties.json
+ * columns that have no lens in lenses.json. opts: {name, ramp, format, unit, description, source,
  * emoji, icon, group, domain?}
  */
 export function countyLens(data, key, opts = {}) {
