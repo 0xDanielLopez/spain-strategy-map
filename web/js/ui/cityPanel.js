@@ -31,11 +31,11 @@ export function openCityPanel(city, ctx) {
     headExtra: popLine(city, growth),
     sections: [
       { title: "Rendimientos", html: `<div class="yield-grid">${yieldGrid(nation, city.yields)}</div>` },
-      { title: "Servicios y vivienda", html: amenities(city, n) + gdpRow(city) },
+      { title: "Economía", html: amenities(city, n) + gdpRow(city) },
       { title: "Sectores · dónde trabaja la gente", html: industries(city, nation) },
     ],
     foot: `Fuente: ${esc(nation.vintage)} ${nation.gdp_vintage ? `; PIB: ${esc(nation.gdp_vintage)}` : ""}.
-      Verde ×N = el peso de este sector en el empleo es N veces el de España.`,
+      Verde ×N = el peso de este sector en el empleo es N veces el de España. Renta: media por persona, no mediana. El PIB de cada área es una imputación a partir del PIB provincial.`,
     onClose: ctx.onClose,
     onPedia: ctx.onPedia,
     wire(panel) {

@@ -40,7 +40,7 @@ export function openStatePanel(idx, ctx) {
     headExtra: hasEcon ? popLine(st, growthSpan(st, n)) : "",
     sections: [
       st.yields && { title: "Rendimientos · puesto entre comunidades", html: `<div class="yield-grid">${yieldGrid(nation, st.yields, st.ranks, count)}</div>` },
-      hasEcon && { title: "Servicios y vivienda", html: amenities(st, n) + gdpRow(st) },
+      hasEcon && { title: "Economía", html: amenities(st, n) + gdpRow(st) },
       st.jobs && { title: "Principales sectores · dónde trabaja la gente", html: industries(st, nation, 8) },
       { title: "Ciudades más grandes", html: cityRows },
       !hasEcon && { title: "Datos", html: `<p class="muted">Las estadísticas de comunidades no están en esta versión de los datos (falta states.json).</p>` },

@@ -1,6 +1,7 @@
 // Shared building blocks for the city and state panels (both render into #city-panel).
 import { compact, dollars, esc, int, money, pct, yieldValue } from "../format.js";
 import { icon, glyph } from "./icon.js";
+import { iconKey } from "../industry.js";
 
 // Industry → a "district" glyph: SVG icons i-<key> from icons.js; these emoji are only the fallback.
 export const DISTRICT_ICON = {
@@ -28,26 +29,25 @@ export function yieldGrid(nation, yields, ranks = null, rankOf = 0) {
     .join("");
 }
 
-// One "value ▲ US value" row. higherIsGood: true / false / null (neutral).
+// One "value ▲ España value" row. higherIsGood: true / false / null (neutral). Empty when neither the area nor the
+// nation has a value (null is "not measured", never zero).
 export function statRow(ic, fallback, label, v, nv, fmt, higherIsGood) {
+  if (!Number.isFinite(v) && !Number.isFinite(nv)) return "";
   let cmp = "";
-  if (v != null && nv != null && nv !== 0) {
+  if (Number.isFinite(v) && Number.isFinite(nv) && nv !== 0) {
     const ratio = v / nv;
     const cls = Math.abs(ratio - 1) < 0.03 || higherIsGood == null ? "" : (higherIsGood ? ratio >= 1 : ratio <= 1) ? "good" : "bad";
-    // Within 3% of the U.S. value reads as level: no arrow, no colour (the colour uses the same band).
+    // Within 3% of the national value reads as level: no arrow, no colour (the colour uses the same band).
     const arrow = Math.abs(ratio - 1) < 0.03 ? "≈" : ratio > 1 ? "▲" : "▼";
-    cmp = `<span class="cmp ${cls}">${arrow} US ${fmt(nv)}</span>`;
+    cmp = `<span class="cmp ${cls}">${arrow} España ${fmt(nv)}</span>`;
   }
-  return `<div class="stat-row"><span class="sl">${icon(ic, fallback, { size: 14 })}${esc(label)}</span><span><b>${fmt(v)}</b>${cmp}</span></div>`;
+  return `<div class="stat-row"><span class="sl">${icon(ic, fallback, { size: 14 })}${esc(label)}</span><span><b>${Number.isFinite(v) ? fmt(v) : "–"}</b>${cmp}</span></div>`;
 }
 
 export function amenities(o, n) {
   return `
     ${statRow("unemployment", "😐", "Desempleo", o.unemployment, n.unemployment, (x) => pct(x), false)}
-    ${statRow("l-income", "💵", "Renta mediana del hogar", o.median_income, n.median_income, dollars, true)}
-    ${statRow("l-home", "🏠", "Valor mediano de la vivienda", o.home_value, n.home_value, dollars, null)}
-    ${statRow("l-homeownership", "🔑", "Alquiler mediano bruto / mes", o.median_rent, n.median_rent, dollars, false)}
-    ${statRow(null, "⚖️", "Alquiler ÷ renta", o.rent_burden, n.rent_burden, (x) => pct(x), false)}`;
+    ${statRow("l-income", "💵", "Renta media por persona", o.income_per_person, n.income_per_person, dollars, true)}`;
 }
 
 // Workforce by industry with location quotients vs. the nation ("specialisation"). limit = max rows (0 = all).
@@ -60,16 +60,17 @@ export function industries(o, nation, limit = 0) {
     .sort((a, b) => b[1] - a[1]);
   if (limit) rows = rows.slice(0, limit);
   if (!rows.length) return `<p class="muted">Sin datos de sectores.</p>`;
+  const note = `<p class="muted">Ocupados según dónde viven (Censo 2024)</p>`;
   const maxShare = rows[0][1] / total;
-  return rows
+  return note + rows
     .map(([k, v]) => {
       const share = v / total;
       const nShare = (n.jobs?.[k] || 0) / nTotal;
-      const lq = nShare > 0 ? share / nShare : 1;
-      const tip = `El peso en el empleo es ${lq.toFixed(1)}× el nacional`;
-      const badge = lq >= 1.3 ? `<span class="lq hi" title="${tip}">×${lq.toFixed(1)}</span>`
-        : lq <= 0.6 ? `<span class="lq lo" title="${tip}">×${lq.toFixed(1)}</span>` : "";
-      return `<div class="ind"><span aria-hidden="true">${icon(`i-${k}`, DISTRICT_ICON[k] || "•")}</span>
+      const lq = nShare > 0 ? share / nShare : 1; // no national share: neutral, no badge
+      const tip = `El peso en el empleo es ${lq.toFixed(1).replace(".", ",")}× el nacional`;
+      const badge = lq >= 1.3 ? `<span class="lq hi" title="${tip}">×${lq.toFixed(1).replace(".", ",")}</span>`
+        : lq <= 0.6 ? `<span class="lq lo" title="${tip}">×${lq.toFixed(1).replace(".", ",")}</span>` : "";
+      return `<div class="ind"><span aria-hidden="true">${icon(`i-${iconKey(k)}`, DISTRICT_ICON[iconKey(k)] || "•")}</span>
         <span>${esc(nation.industries?.[k] || k)}${badge}</span><span class="n">${compact(v)} · ${pct(share, 0)}</span>
         <div class="bar"><i style="width:${(share / maxShare) * 100}%;background:${lq >= 1.3 ? "#9fd76a" : "#c9a45c"}"></i></div></div>`;
     })
@@ -77,12 +78,11 @@ export function industries(o, nation, limit = 0) {
 }
 
 export const gdpRow = (o) =>
-  o.gdp != null
-    ? `<div class="stat-row"><span class="sl">${icon("y-gold", "💰", { size: 14 })}GDP${o.gdp_year ? ` (${o.gdp_year})` : ""}</span><span><b>${money(o.gdp)}</b>${
-        o.population ? `<span class="cmp">${money(o.gdp / o.population)} por persona</span>` : ""}</span></div>`
+  Number.isFinite(o.gdp)
+    ? `<div class="stat-row"><span class="sl">${icon("y-gold", "💰", { size: 14 })}${o.gdp_estimated ? "PIB provincial imputado" : "PIB"}${o.gdp_year ? ` (${o.gdp_year})` : ""}</span><span><b>${money(o.gdp)}</b></span></div>`
     : "";
 
-// " · ▲ 3.4% since 2021" from growth / growth_years (cities and states), compared with Spain in the tooltip.
+// " · ▲ 3,4 % desde 2021" from growth / growth_years (cities and states), compared with Spain in the tooltip.
 // Empty when growth is missing (null means "not measured", never zero).
 export function growthSpan(o, n = null) {
   if (!Number.isFinite(o?.growth)) return "";
@@ -97,7 +97,7 @@ export function growthSpan(o, n = null) {
 }
 
 export const popLine = (o, extra = "") =>
-  `<div class="cp-pop">${icon("pop", "👥", { size: 16 })} <b>${int(o.population)}</b> habitantes · ${int(o.employed)} ocupados${extra}</div>`;
+  `<div class="cp-pop">${icon("pop", "👥", { size: 16 })} <b>${int(o.population)}</b> habitantes${Number.isFinite(o.employed) ? ` · ${int(o.employed)} ocupados` : ""}${extra}</div>`;
 
 /**
  * Fill and show the panel.

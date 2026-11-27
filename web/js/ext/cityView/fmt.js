@@ -3,7 +3,7 @@
 // with the rest of the app; this wrapper keeps the same output for every other value.
 import { compact as baseCompact, popShort as basePopShort } from "../../format.js";
 
-const UNITS = [[1e12, " B"], [1e9, " mil M"], [1e6, " M"], [1e3, " k"]];
+const UNITS = [[1e12, " bill."], [1e9, " mil M"], [1e6, " M"], [1e3, " mil"]];
 
 /** Rounds n up to the next unit when its compact form would print 1000 of the current one. */
 function rollover(n, fmt) {

@@ -7,6 +7,7 @@ import { compact, dollars, esc, int, money, pct } from "../format.js";
 import { hasIcon } from "../icons.js";
 import { icon, glyph } from "./icon.js";
 import { DISTRICT_ICON } from "./infoPanel.js";
+import { iconKey } from "../industry.js";
 
 export const METRO_MIN = 250000; // metros in growth / specialisation / per-person rankings
 export const BIG_METRO_MIN = 500000; // metros in the unemployment rankings
@@ -30,21 +31,21 @@ const advisorApp = () => (typeof window !== "undefined" && window.__app?.hasMode
 
 const fin = Number.isFinite;
 const ratio = (a, b) => (fin(a) && fin(b) && b > 0 ? a / b : null);
-export const signedPct = (g, d = 1) => (fin(g) ? `${g >= 0 ? "+" : "−"}${Math.abs(g * 100).toFixed(d)}%` : "–");
+export const signedPct = (g, d = 1) => (fin(g) ? `${g >= 0 ? "+" : "−"}${Math.abs(g * 100).toFixed(d).replace(".", ",")} %` : "–");
 
 // Counts to three significant figures (leaderboards: 1.12M vs 1.11M rather than 1.1M twice).
 export function count3(n) {
   if (!fin(n)) return "–";
   const a = Math.abs(n);
-  const sig = (d, unit) => (n / d).toFixed(a / d >= 100 ? 0 : a / d >= 10 ? 1 : 2) + unit;
-  if (a >= 1e12) return sig(1e12, "T");
-  if (a >= 1e9) return sig(1e9, "B");
-  if (a >= 1e6) return sig(1e6, "M");
-  if (a >= 1e4) return sig(1e3, "K");
+  const sig = (d, unit) => (n / d).toFixed(a / d >= 100 ? 0 : a / d >= 10 ? 1 : 2).replace(".", ",") + unit;
+  if (a >= 1e12) return sig(1e12, " bill.");
+  if (a >= 1e9) return sig(1e9, " mil M");
+  if (a >= 1e6) return sig(1e6, " M");
+  if (a >= 1e4) return sig(1e3, " mil");
   return int(n);
 }
 
-// Formats a value of a stat ("usd" → $, "rate" → %, anything else → compact count).
+// Formats a value of a stat ("usd" → euros, "rate" → %, anything else → compact count).
 export function fmtStat(def, v) {
   if (!fin(v)) return "–";
   if (def.unit === "usd") return money(v);
@@ -66,24 +67,28 @@ export function statDefs(nation) {
     source: y.key === "gold" ? nation.gdp_vintage || nation.vintage || "" : nation.vintage || "",
     value: y.key === "gold" ? n.gdp ?? n.yields?.gold ?? null : n.yields?.[y.key] ?? null,
   }));
-  return [
+  const list = [
     {
       key: "population", label: "Población", name: "Población", color: "#e8dcc0", iconId: "pop", emoji: "👥", unit: "habitantes",
       description: "Habitantes.", source: nation?.vintage || "", value: n.population ?? null,
     },
     ...yields,
-    {
-      key: "unemployment", label: "Desempleo", name: "Tasa de desempleo", color: "#e8dcc0", iconId: "unemployment", emoji: "😐",
-      unit: "rate", description: "Parados ÷ población activa.", source: nation?.vintage || "", value: n.unemployment ?? null,
-    },
   ];
+  // Unemployment is only offered when the data has it (the Spanish build has no such rate: null, no button).
+  if (Number.isFinite(n.unemployment)) {
+    list.push({
+      key: "unemployment", label: "Desempleo", name: "Tasa de desempleo", color: "#e8dcc0", iconId: "unemployment", emoji: "😐",
+      unit: "rate", description: "Parados ÷ población activa.", source: nation?.vintage || "", value: n.unemployment,
+    });
+  }
+  return list;
 }
 
 const industryLabel = (nation, k, gdp = false) => {
   const full = (gdp ? nation.gdp_industries?.[k] : null) || nation.industries?.[k] || (k === "government" ? "Administración pública" : k);
   return { label: full.replace(/\s*\(.*\)\s*$/, ""), full };
 };
-const industryIcon = (k) => (hasIcon(`i-${k}`) ? `i-${k}` : k === "government" && hasIcon("i-public_admin") ? "i-public_admin" : null);
+const industryIcon = (k) => (hasIcon(`i-${iconKey(k)}`) ? `i-${iconKey(k)}` : k === "government" && hasIcon("i-public_admin") ? "i-public_admin" : null);
 
 // Areas the leaderboards rank: states (index into states.json = world.json states) and metro areas.
 function areas(states, cities) {
@@ -170,8 +175,8 @@ export function buildReport(key, { nation, states, cities, lenses, lensVintage }
 
 function reportPopulation(rep, n, st, metros) {
   const yrs = Array.isArray(n.growth_years) && n.growth_years.length === 2 ? n.growth_years : null;
-  const since = yrs ? ` since ${yrs[0]}` : "";
-  if (fin(n.growth)) rep.context.push(`${signedPct(n.growth)}${since} (Census population estimates)`);
+  const since = yrs ? ` desde ${yrs[0]}` : "";
+  if (fin(n.growth)) rep.context.push(`${signedPct(n.growth)}${since} (Censo)`);
   const emp = ratio(n.employed, n.population);
   if (emp != null) rep.context.push(`${compact(n.employed)} ocupados, el ${pct(emp)} de los habitantes`);
 
@@ -188,7 +193,7 @@ function reportPopulation(rep, n, st, metros) {
     groups.push({ title: `Mayor crecimiento: ${what}`, rows: top.map((x) => row(x)) });
     groups.push({ title: bottom.every((x) => x.v < 0) ? `En retroceso: ${what}` : `Menor crecimiento: ${what}`, rows: bottom.map((x) => row(x)) });
   };
-  extremes(sorted(st, g), "states");
+  extremes(sorted(st, g), "comunidades");
   extremes(sorted(metros, g, METRO_MIN), `áreas urbanas (${compact(METRO_MIN)}+)`);
   if (groups.length) rep.breakdown = { title: yrs ? `Variación de población ${yrs[0]}–${yrs[1]}` : "Variación de población", note: rep.scope.note, groups };
 
@@ -205,7 +210,7 @@ function reportUnemployment(rep, n, st, metros) {
   const u = (o) => o.unemployment;
   if (fin(n.unemployment) && n.unemployment > 0) rep.context.push(`Aproximadamente 1 de cada ${Math.round(1 / n.unemployment)} personas activas está en paro`);
   const ss = sorted(st, u);
-  if (ss.length >= 2) rep.context.push(`${rep.scope.note ? rep.scope.inMap : rep.scope.label} range from ${pct(ss.at(-1).v)} to ${pct(ss[0].v)}`);
+  if (ss.length >= 2) rep.context.push(`${rep.scope.note ? rep.scope.inMap : rep.scope.label} van del ${pct(ss.at(-1).v)} al ${pct(ss[0].v)}`);
 
   const tone = (v) => (!fin(n.unemployment) || Math.abs(v / n.unemployment - 1) < 0.03 ? null : v > n.unemployment ? "bad" : "good");
   const row = (label, x) => ({ label: `${label}: ${x.r.name}`, sub: x.r.kind === "city" ? x.r.sub : "", value: x.v, text: pct(x.v), tone: tone(x.v) });
@@ -231,8 +236,8 @@ function reportGold(rep, nation, n, st, metros) {
   // GDP and population can come from different years (BEA GDP lags the ACS by a year): say which.
   const popYear = fin(nation.year) ? nation.year : null;
   const years = n.gdp_year && popYear && n.gdp_year !== popYear ? `PIB ${n.gdp_year} ÷ residentes ${popYear}` : "PIB ÷ residentes";
-  if (pp != null) rep.context.push(`${money(pp)} per person (${years})`);
-  if (n.gdp_year) rep.context.push(`Year ${n.gdp_year}, current dollars`);
+  if (pp != null) rep.context.push(`${money(pp)} por persona (${years})`);
+  if (n.gdp_year) rep.context.push(`Año ${n.gdp_year}, euros corrientes`);
 
   const rows = Object.entries(n.gdp_by_industry || {})
     .filter(([, v]) => fin(v))
@@ -240,7 +245,7 @@ function reportGold(rep, nation, n, st, metros) {
     .map(([k, v]) => {
       const { label, full } = industryLabel(nation, k, true);
       const s = ratio(v, rep.total);
-      return { label, full, iconId: industryIcon(k), emoji: DISTRICT_ICON[k] || "•", value: v, text: money(v), sub: s != null ? pct(s) : "" };
+      return { label, full, iconId: industryIcon(k), emoji: DISTRICT_ICON[iconKey(k)] || "•", value: v, text: money(v), sub: s != null ? pct(s) : "" };
     });
   if (rows.length) rep.breakdown = { title: "PIB por sector", groups: [{ rows }], collapseAfter: GDP_ROWS };
 
@@ -259,7 +264,7 @@ function reportJobs(rep, def, nation, n, st, metros) {
   const nShare = ratio(rep.total, n.employed);
   if (nShare != null) rep.context.push(`${pct(nShare)} de los ${compact(n.employed)} ocupados`);
   const per1k = ratio(rep.total, n.population);
-  if (per1k != null) rep.context.push(`${Math.round(per1k * 1000)} per 1,000 residents`);
+  if (per1k != null) rep.context.push(`${Math.round(per1k * 1000)} por cada 1.000 habitantes`);
 
   const inds = Array.isArray(def.yield?.industries) ? def.yield.industries : [];
   const gdpOf = inds.map((k) => n.gdp_by_industry?.[k]);
@@ -267,9 +272,9 @@ function reportJobs(rep, def, nation, n, st, metros) {
     const sum = gdpOf.reduce((a, b) => a + b, 0);
     rep.context.push(`${inds.length > 1 ? "Estos sectores producen" : "El sector produce"} ${money(sum)} de PIB (${pct(sum / n.gdp)}${n.gdp_year ? `, ${n.gdp_year}` : ""})`);
   }
-  // Worker counts are ACS (where people live); the GDP figures are BEA (where the work is done): credit both.
+  // Worker counts are by residence (Censo); the GDP figures come from the regional accounts: credit both.
   if (inds.some((k) => fin(n.gdp_by_industry?.[k])) && nation.gdp_vintage && nation.gdp_vintage !== rep.source) {
-    rep.source = `${rep.source ? `${rep.source} (workers); ` : ""}${nation.gdp_vintage} (GDP)`;
+    rep.source = `${rep.source ? `${rep.source} (ocupados); ` : ""}${nation.gdp_vintage} (PIB)`;
   }
   const rows = inds
     .map((k) => {
@@ -278,8 +283,8 @@ function reportJobs(rep, def, nation, n, st, metros) {
       const { label, full } = industryLabel(nation, k);
       const s = ratio(v, n.employed);
       const g = n.gdp_by_industry?.[k];
-      const sub = [s != null ? `${pct(s)} de todos los empleos` : "", fin(g) ? `GDP ${money(g)}` : ""].filter(Boolean).join(" · ");
-      return { label, full, iconId: industryIcon(k), emoji: DISTRICT_ICON[k] || "•", value: v, text: compact(v), sub };
+      const sub = [s != null ? `${pct(s)} de todos los empleos` : "", fin(g) ? `PIB ${money(g)}` : ""].filter(Boolean).join(" · ");
+      return { label, full, iconId: industryIcon(k), emoji: DISTRICT_ICON[iconKey(k)] || "•", value: v, text: compact(v), sub };
     })
     .filter(Boolean)
     .sort((a, b) => b.value - a.value);
@@ -291,8 +296,8 @@ function reportJobs(rep, def, nation, n, st, metros) {
     const s = ratio(y(o), o.employed);
     return s != null ? `${pct(s)} de los empleos` : "";
   };
-  const fmtLq = (v) => `×${v.toFixed(2)}`;
-  const exactLq = (v) => `×${v.toFixed(3)}`;
+  const fmtLq = (v) => `×${v.toFixed(2).replace(".", ",")}`;
+  const exactLq = (v) => `×${v.toFixed(3).replace(".", ",")}`;
   rep.boards.modes = [
     { id: "abs", label: "Más trabajadores", states: rank(st, y), metros: rank(metros, y) },
     {

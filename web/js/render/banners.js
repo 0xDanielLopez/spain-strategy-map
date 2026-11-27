@@ -20,6 +20,7 @@
 // blitted, so panning costs one drawImage per banner.
 import { css, luminance, shade } from "../color.js";
 import { drawIcon, hasIcon } from "../icons.js";
+import { iconKey } from "../industry.js";
 import { compact, popShort } from "../ext/cityView/fmt.js"; // format.js plus a 1000K → 1.0M roll-over fix
 import { isCapital } from "../world.js";
 import { cityIsDot } from "./art/city.js";
@@ -93,7 +94,8 @@ export function specialty(city, nation) {
   let best = null;
   for (const [k, share] of Object.entries(cs)) {
     if (share < MIN_SHARE || !(ns[k] > 0)) continue;
-    const icon = hasIcon(`i-${k}`) ? [`i-${k}`, INDUSTRY_ICON[k]?.[1] || "#3a4a5e"] : INDUSTRY_ICON[k];
+    const ik = iconKey(k);
+    const icon = hasIcon(`i-${ik}`) ? [`i-${ik}`, INDUSTRY_ICON[ik]?.[1] || "#3a4a5e"] : INDUSTRY_ICON[ik];
     if (!icon || !hasIcon(icon[0])) continue;
     const lq = share / ns[k];
     if (!best || lq > best.lq) best = { key: k, lq, icon: icon[0], bg: icon[1] };
@@ -153,7 +155,7 @@ function measure(ctx, city, yields, nation, L) {
     return { yd, t, w: ctx.measureText(t).width };
   });
   const yieldsW = parts.reduce((a, p) => a + L.yieldIcon + 2 + p.w + L.yieldGap, 0) - L.yieldGap;
-  const growthTxt = growth == null ? "" : `${growth >= 0 ? "+" : "−"}${Math.abs(growth * 100).toFixed(1)}%`;
+  const growthTxt = growth == null ? "" : `${growth >= 0 ? "+" : "−"}${Math.abs(growth * 100).toFixed(1).replace(".", ",")} %`;
   const growthW = growthTxt ? ctx.measureText(growthTxt).width : 0;
   ctx.restore();
   const spec = specialty(city, nation);

@@ -4,8 +4,8 @@
 
 Part 1 checks each file's shape: required keys, types, per-cell array lengths and value
 ranges. Part 2 is a short data-quality report for the base map (Spanish land hexes, hexes
-per CCAA, forced cells, rivers inside the map). Phase F0 only produces world.json,
-cities.json ([]), nation.json (minimal) and sources.json; everything else is optional.
+per CCAA, forced cells, rivers inside the map). Cities, states and nation (F2) are checked against the economy builder.
+Without statistics (F0) cities.json is [] and nation.json minimal; the other files are optional.
 
 Every line is PASS, WARN or FAIL (NOTE for information). The exit code is 1 if
 anything FAILed.
@@ -288,11 +288,125 @@ def check_sources(r: Report, doc) -> set | None:
     return ids
 
 
-def check_cities(r: Report, cities) -> None:
+CITY_KEYS = ["id", "name", "full", "states", "metro", "capital", "x", "y", "cell", "population", "employed", "yields",
+             "jobs", "gdp", "gdp_year", "growth", "growth_years", "counties", "footprint", "ranks", "peers"]
+YIELD_KEYS = ["food", "production", "gold", "science", "culture"]
+RANK_KEYS = ["population", "gdp", "gdp_per_capita", "growth", *YIELD_KEYS]
+PCT_FIELDS = ["jobs_coverage", "unemployment", "rent_burden"]
+
+
+def _is_f0(nat) -> bool:
+    return isinstance(nat, dict) and nat.get("year") is None
+
+
+def check_ranks(r: Report, what: str, rows: list, keys=RANK_KEYS) -> None:
+    """Every row's ranks: null or a permutation of 1..N over the non-null rows, per key."""
+    for key in keys:
+        got = [row["ranks"].get(key) if isinstance(row.get("ranks"), dict) else None for row in rows]
+        have = sorted(v for v in got if v is not None)
+        if have != list(range(1, len(have) + 1)):
+            r.fail(f"{what} ranks.{key}: not a permutation of 1..{len(have)}")
+
+
+def check_pct_fields(r: Report, what: str, rows: list) -> None:
+    for row in rows:
+        for k in PCT_FIELDS:
+            v = row.get(k)
+            if v is not None and (not is_num(v) or not 0 <= v <= 1):
+                r.fail(f"{what} {row.get('id', row.get('fips'))}: {k} {v!r} outside 0..1")
+
+
+def check_cities(r: Report, cities, nat=None, world=None, interim_dir: Path | None = None) -> None:
     if not isinstance(cities, list):
         r.fail("cities.json: expected a list")
+        return
+    if not cities:
+        if _is_f0(nat):
+            r.ok("cities.json: 0 cities (F0: none yet)")
+        else:
+            r.fail("cities.json: empty although nation.json has statistics")
+        return
+    fails_before = r.count("FAIL")
+    if not all(isinstance(c, dict) and need_keys(r, f"cities.json {c.get('id') if isinstance(c, dict) else '?'}", c, CITY_KEYS) for c in cities):
+        return
+    ids = [c["id"] for c in cities]
+    if len(set(ids)) != len(ids):
+        r.fail("cities.json: duplicate ids")
+    pops = [c["population"] for c in cities]
+    if pops != sorted(pops, reverse=True):
+        r.fail("cities.json: not sorted by population, descending")
+    cells = [c["cell"] for c in cities]
+    dup = [k for k, n in Counter(cells).items() if n > 1]
+    if dup:
+        r.fail(f"cities.json: {len(dup)} cells shared by several cities, e.g. {_sample(dup)}")
+    owner = (world or {}).get("owner")
+    if owner:
+        bad = [c["id"] for c in cities if not (isinstance(c["cell"], int) and 0 <= c["cell"] < len(owner) and owner[c["cell"]] >= 0)]
+        if bad:
+            r.fail(f"cities.json: city cell is not a Spanish land cell: {_sample(bad)}")
+        off = [c["id"] for c in cities if any(not (isinstance(k, int) and 0 <= k < len(owner) and owner[k] >= 0) for k in c["footprint"])]
+        if off:
+            r.fail(f"cities.json: footprint outside Spanish land cells: {_sample(off)}")
+    empty = [c["id"] for c in cities if not c["footprint"] or c["cell"] not in c["footprint"]]
+    if empty:
+        r.fail(f"cities.json: empty footprint or footprint without the city's own cell: {_sample(empty)}")
+    if any(not c["counties"] for c in cities):
+        r.fail("cities.json: a city without member municipalities")
+    check_ranks(r, "cities.json", cities)
+    check_pct_fields(r, "cities.json", cities)
+    idset = set(ids)
+    if any(len(c["peers"]) != min(5, len(cities) - 1) or c["id"] in c["peers"] or not set(c["peers"]) <= idset for c in cities):
+        r.fail("cities.json: peers must be 5 other city ids")
+    capitals = [c for c in cities if c["capital"]]
+    if len(capitals) != 1:
+        r.fail(f"cities.json: expected exactly one capital, got {len(capitals)}")
+    elif capitals[0]["ranks"].get("population") != 1:
+        r.fail(f"cities.json: the capital ({capitals[0]['name']}) is not first by population")
+    if isinstance(nat, dict) and isinstance(nat.get("nation"), dict):
+        n = nat["nation"]
+        if len({tuple(c["growth_years"]) for c in cities}) != 1 or cities[0]["growth_years"][-1] != nat.get("year"):
+            r.fail(f"cities.json: growth_years must be identical and end at nation.json year {nat.get('year')}")
+        total = sum(c["gdp"] or 0 for c in cities)
+        if n.get("gdp") and total >= n["gdp"]:
+            r.fail(f"cities.json: city GDP total {total:,.0f} is not below the national GDP {n['gdp']:,.0f}")
+        if n.get("population") and sum(pops) > n["population"]:
+            r.fail("cities.json: city populations add up to more than the nation")
+    ine_p = Path(interim_dir) / "ine.json" if interim_dir else None
+    if ine_p and ine_p.exists():
+        ine_m = json.loads(ine_p.read_text())["data"]["municipalities"]
+        low = [c["id"] for c in cities if c.get("core") and c["population"] < (ine_m.get(c["core"]) or {}).get("pop", 0)]
+        if low:
+            r.fail(f"cities.json: population below the core municipality's: {_sample(low)}")
     else:
-        r.ok(f"cities.json: {len(cities)} cities" + (" (F0: none yet)" if not cities else ""))
+        r.note("cities.json: ine interim missing, core-municipality population not checked")
+    if r.count("FAIL") == fails_before:
+        r.ok(f"cities.json: {len(cities)} cities, unique land cells, ranks consistent")
+
+
+def check_states(r: Report, states, nat=None) -> None:
+    if not isinstance(states, list):
+        r.fail("states.json: expected a list")
+        return
+    fails_before = r.count("FAIL")
+    if len(states) != N_CCAA:
+        r.fail(f"states.json: expected {N_CCAA} autonomous communities, got {len(states)}")
+    if not all(isinstance(s, dict) and need_keys(r, f"states.json {s.get('abbr') if isinstance(s, dict) else '?'}", s,
+                                                 ["fips", "abbr", "name", "population", "employed", "jobs", "yields", "gdp", "growth", "ranks"]) for s in states):
+        return
+    if len({s["fips"] for s in states}) != len(states):
+        r.fail("states.json: duplicate fips")
+    check_ranks(r, "states.json", states, ["population", "gdp", "gdp_per_capita", "growth", *YIELD_KEYS])
+    check_pct_fields(r, "states.json", states)
+    if isinstance(nat, dict) and isinstance(nat.get("nation"), dict):
+        n = nat["nation"]
+        if n.get("population") is not None and sum(s["population"] or 0 for s in states) != n["population"]:
+            r.fail("states.json: CCAA populations do not add up to nation.json population")
+        if n.get("gdp") and sum(s["gdp"] or 0 for s in states) > n["gdp"] * 1.0001:
+            r.fail("states.json: CCAA GDP adds up to more than the national GDP")
+        if any(s["growth_years"] != n.get("growth_years") for s in states):
+            r.fail("states.json: growth_years differ from nation.json")
+    if r.count("FAIL") == fails_before:
+        r.ok(f"states.json: {len(states)} CCAA, ranks consistent")
 
 
 def check_nation(r: Report, nat) -> None:
@@ -307,8 +421,32 @@ def check_nation(r: Report, nat) -> None:
         v = nat["nation"][k]
         if v is not None and not is_num(v):
             r.fail(f"nation.json nation.{k}: expected a number or null, got {v!r}")
+    if not _is_f0(nat):
+        gy = nat["nation"]["growth_years"]
+        if not (isinstance(gy, list) and len(gy) == 2 and gy[-1] == nat["year"]):
+            r.fail(f"nation.json: growth_years {gy!r} must end at year {nat['year']}")
+        if nat["nation"]["gdp"] is None or nat["nation"]["population"] is None or nat["nation"]["growth"] is None:
+            r.fail("nation.json: population, gdp and growth are required once statistics exist")
+        if isinstance(nat["industries"], dict) and isinstance(nat["nation"]["jobs"], dict) and set(nat["industries"]) != set(nat["nation"]["jobs"]):
+            r.fail("nation.json: industries and nation.jobs have different keys")
+        if not nat.get("attribution"):
+            r.fail("nation.json: attribution missing")
     if r.count("FAIL") == fails_before:
         r.ok(f"nation.json: {nat['nation']['name']} ({nat['vintage']})")
+
+
+def check_economy_conservation(r: Report, interim_dir: Path) -> None:
+    """Imputed GDP adds up, per province, to the published provincial GDP (from the _economy_stats interim)."""
+    p = Path(interim_dir) / "_economy_stats.json"
+    if not p.exists():
+        r.note("_economy_stats: missing (economy not built), GDP conservation not checked")
+        return
+    st = json.loads(p.read_text())["data"]
+    bad = [f"{k} {v['imputed']:.0f} vs {v['gdp']:.0f}" for k, v in sorted(st["provinces"].items())
+           if abs(v["imputed"] - v["gdp"]) > 1e-6 * v["gdp"]]
+    (r.fail if bad else r.ok)(f"imputed GDP conserved in {len(st['provinces'])} provinces (1e-6)" + (f": {', '.join(bad[:5])}" if bad else ""))
+    if st["cities_gdp"] >= st["national_gdp"]:
+        r.fail(f"city GDP total {st['cities_gdp']:,.0f} is not below the national GDP {st['national_gdp']:,.0f}")
 
 
 # ---------------------------------------------------------------- lenses
@@ -513,7 +651,11 @@ def run(web_dir: Path = WEB_DATA, interim_dir: Path = INTERIM, quiet: bool = Fal
     if docs["nation.json"] is not None:
         check_nation(r, docs["nation.json"])
     if docs["cities.json"] is not None:
-        check_cities(r, docs["cities.json"])
+        check_cities(r, docs["cities.json"], docs["nation.json"], docs["world.json"], interim_dir)
+    if docs.get("states.json") is not None:
+        check_states(r, docs["states.json"], docs["nation.json"])
+    if docs["nation.json"] is not None and not _is_f0(docs["nation.json"]):
+        check_economy_conservation(r, interim_dir)
 
     if docs.get("lenses.json") is not None:
         check_lenses(r, docs["lenses.json"], ctx, source_ids)

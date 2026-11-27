@@ -1,7 +1,7 @@
 # Spain Strategy Map
 
-España dibujada como un mapa de estrategia 4X: terreno en hexágonos, relieve, cobertura del suelo y lentes con datos
-del INE por municipio, todo a partir de datos públicos.
+España dibujada como un mapa de estrategia 4X: terreno en hexágonos, relieve, cobertura del suelo, lentes con datos
+del INE por municipio y las 68 áreas urbanas funcionales como ciudades, todo a partir de datos públicos.
 
 **Mapa en vivo: https://0xdaniellopez.github.io/spain-strategy-map/**
 
@@ -11,7 +11,7 @@ EE. UU. por datos abiertos de España y de Europa.
 
 ## Estado
 
-Fases F0 (mapa base) y F1 (lentes del INE).
+Fases F0 (mapa base), F1 (lentes del INE) y F2 (ciudades).
 
 - Hexágonos de 10 km de radio (unos 260 km2 cada uno, unos 1.950 de tierra en España).
 - Tierra y agua, relieve (llano, colinas, montañas, picos) y cobertura del suelo en cada hexágono.
@@ -23,9 +23,22 @@ Fases F0 (mapa base) y F1 (lentes del INE).
 - 12 lentes: densidad, crecimiento 2021-2026, edad media, mayores de 65 años, nacionalidad extranjera, tamaño del
   hogar, renta neta por persona, población bajo el 60 % de la mediana, estudios superiores, arbolado, cultivos y
   construido.
-- Buscador de comunidades y de los 8.132 municipios.
+- Buscador de ciudades, comunidades y de los 8.132 municipios.
+- 68 ciudades: las áreas urbanas funcionales del INE, con población, crecimiento, renta media por persona, ocupados
+  por sector y cinco rendimientos (comida, producción, ciencia, cultura y oro). Las 19 comunidades tienen los mismos
+  datos.
 
-Todavía no hay ciudades, recursos ni estadísticas por comunidad.
+Todavía no hay recursos, infraestructura ni vista de ciudad. Los Consejeros están ocultos hasta adaptarlos a los
+datos de España.
+
+### Rendimientos de las ciudades
+
+- Comida, producción, ciencia y cultura cuentan ocupados por sector (CNAE) según dónde viven, del Censo anual de
+  población 2024: comida = agricultura; producción = industria, energía, agua y construcción; ciencia = información y
+  comunicaciones y actividades profesionales y científicas; cultura = actividades artísticas y recreativas.
+- El oro es el PIB. Para las comunidades y España es el PIB publicado por el INE. Para las ciudades es un PIB
+  provincial imputado: reparto el PIB de cada provincia entre sus municipios según sus ocupados y sumo los municipios
+  del área. No es un PIB municipal medido, así que no comparo ciudades por PIB por habitante.
 
 ### Cómo se reparten los datos municipales
 
@@ -60,6 +73,7 @@ uv run python -m pipeline serve     # abre http://127.0.0.1:8765
 | [ETOPO1](https://www.ncei.noaa.gov/products/etopo-global-relief-model) vía NOAA ERDDAP | NOAA NCEI | Dominio público | Relieve, profundidad del mar |
 | [Natural Earth 1:50m](https://www.naturalearthdata.com/) | Natural Earth | Dominio público | Países vecinos, lagos, ríos |
 | [INE](https://www.ine.es): Censo anual de población (tabla 73027), Atlas de distribución de renta de los hogares (30824, 30829, 30832), nivel de estudios (66620) | Instituto Nacional de Estadística | Reutilización permitida citando la fuente | Lentes por municipio |
+| INE: áreas urbanas funcionales 2026, ocupados por sector (69992, 70002, 69968), Contabilidad Regional (80109) | Instituto Nacional de Estadística | Reutilización permitida citando la fuente | Ciudades, rendimientos y PIB |
 
 El mapa muestra la línea de atribución en una esquina, como piden las condiciones de GISCO. El pipeline guarda la URL,
 el sha256, el tamaño y la fecha de cada fichero descargado en `web/data/sources.json`, y `web/data/world.json` lleva

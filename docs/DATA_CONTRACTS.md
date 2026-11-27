@@ -96,111 +96,98 @@ Dominant cover per cell = the largest group among its valid WorldCover points (w
 
 ## cities.json
 
-A list sorted by population, descending:
+Written by `pipeline/build/economy.py` (phase F2). Empty list (`[]`) only in F0. The 68 cities are the INE functional
+urban areas (AUF), sorted by population, descending:
 
 ```jsonc
 {
-  "id": "35620",                  // 5-digit CBSA code
-  "name": "New York", "full": "New York-Newark-Jersey City, NY-NJ Metro Area",
-  "states": ["NY", "NJ"], "metro": true, "capital": false,   // capital: the national capital (Washington)
-  "x": 3912.1, "y": 1100.4,       // principal city's true position (map km)
-  "cell": 4567,                   // land cell (owner >= 0), unique per city where possible; banners anchor here
-  "population": 20112448, "employed": 9876543,
-  "yields": {"food": 15523, "production": 1059252, "gold": 2.1e12, "science": 1470849, "culture": 252479},  // any may be null
-  "jobs": {"agriculture": 123, "...": null},
-  "median_income": 98000, "median_rent": 1700, "home_value": 650000, "unemployment": 0.0578, "rent_burden": 0.227,
-  "gdp": 2.1e12, "gdp_year": 2024,                       // BEA, current dollars; null if unavailable
-  "gdp_by_industry": {"manufacturing": 1.2e11, "...": null},  // optional. BEA-withheld (D) county values are
-                       // recovered from parent/sibling lines, else the parent's remainder is split in national proportions
-  "gdp_undisclosed": null,          // optional: total minus the industries above when some stay null (usd), else null
-  "gdp_estimated": ["utilities"],   // optional: industries whose value includes an apportioned county figure, or null
-  "growth": 0.0174, "growth_years": [2021, 2025],         // population change, see below
-  "counties": ["34003", "36005", "..."],                  // member county GEOIDs (OMB delineation, list 1), sorted
-  "footprint": [3721, 3722, 3845, "..."],                 // US land cells of the metro, sorted (see below)
-  "pop_series": {"2020": 20081935, "2021": 19708911, "...": null, "2025": 20112448},  // PEP, or null
-  "ranks": {"population": 1, "gdp": 1, "gdp_per_capita": 12, "growth": 301,
-            "food": 1, "production": 1, "gold": 1, "science": 1, "culture": 1},     // 1 = top; null if value null
-  "peers": ["31080", "16980", "..."]                      // ids of the 5 cities closest in population
+  "id": "ES001F",                 // INE AUF code
+  "name": "Madrid", "full": "Área urbana funcional de Madrid",   // name = most populous member municipality
+  "states": ["MD", "CM"],         // CCAA abbreviations of the members, ordered by member population
+  "metro": true, "capital": true, // capital: the AUF that contains Madrid (municipality 28079)
+  "core": "28079",                // INE code of the most populous member
+  "x": 532.9, "y": 459.8,         // centroid of the core's largest ring (map km, inset-aware)
+  "cell": 2310,                   // land cell (owner >= 0), unique per city; banners anchor here
+  "population": 6700000,          // sum of the members' Censo 2026 population
+  "employed": 3100000,            // sum of the members' occupied residents (ine_jobs); absent members count 0
+  "employed_members": [40, 41],   // [members present in ine_jobs, members of the AUF]
+  "jobs_coverage": 0.998,         // share of employed that comes from members with CNAE sections (0..1)
+  "yields": {"food": 1, "production": 2, "gold": 3.1e11, "science": 4, "culture": 5},
+  "jobs": {"a": 123, "...": 0, "u": 0},   // CNAE section a..u; only members with sections (not the 4-sector ones)
+  "income_per_person": 17500, "median_income": null,   // ADRH 2024, population-weighted over members with a value
+  "home_value": null, "median_rent": null, "rent_burden": null, "unemployment": null,
+  "gdp": 3.1e11, "gdp_year": 2023, "gdp_estimated": true, "gdp_by_industry": null,
+  "growth": 0.0412, "growth_years": [2021, 2026],
+  "pop_series": null,
+  "counties": ["28079", "28005", "..."],   // member municipality codes (INE, 5 digits), sorted
+  "footprint": [2310, 2311, "..."],        // land cells of the city, sorted (see below)
+  "ranks": {"population": 1, "gdp": 1, "gdp_per_capita": null, "growth": 7,
+            "food": 1, "production": 1, "gold": 1, "science": 1, "culture": 1},
+  "peers": ["ES002F", "..."]               // ids of the 5 cities closest in population
 }
 ```
 
-* **`footprint`**: the hexes that make up the metro on the map (City view). A US land cell (`owner >= 0`) belongs to
-  a city when at least 4 of its 7 county samples (`_world.county_samples`) fall in the CBSA's member counties. The
-  city's own `cell` is always included, even when it fails that test (a small metro, or a banner cell nudged away), so
-  `footprint` is never empty. A cell is in at most one footprint by the majority rule, but a city's own `cell` may also
-  sit in a bigger neighbour's footprint.
-* **`counties`**: the CBSA's member counties from the OMB delineation (`cbsa_delineation`, list 1), the same list GDP is
-  summed over. Some may be outside the map's county list (none are, today).
-* **`pop_series`**: `{year (string): population}` for every year of the population-estimates vintage (2020 … latest,
-  `pep_population`), on today's metro borders. A year without an estimate is `null`; the whole field is `null` when the
-  CBSA is not in the estimates or its county list there differs from the delineation (the same guard as `growth`).
-  These are PEP numbers, so the latest year will not equal the ACS `population`.
-* **`ranks`**: rank among all cities in cities.json (metro and micro), 1 = highest, for `population`, `gdp`,
-  `gdp_per_capita` (`gdp / population`), `growth` (1 = fastest growing) and each yield key. `null` where the value is
-  null; non-null ranks are a permutation of 1..N, ties broken by population.
-* **`peers`**: the 5 other cities whose population is closest to this one's, by ratio (|log(p / q)|), nearest first.
-
-**Growth** (cities, states and `nation.nation`): `growth = population(end) / population(2021) - 1`, a fraction
-(0.0174 = +1.74%), over `growth_years = [2021, end]`, where `end` equals nation.json `year` (the ACS year the panels
-show). Both populations come from one vintage of the Census population estimates (PEP, source `pep_population`), which
-estimates every year on the current (July 2023) metro delineations and with the same methods. So a city's growth is
-like for like: no county added or dropped between the two years (e.g. Chicago without Kenosha County in both years,
-Connecticut's planning regions back to 2020, renamed areas such as Kiryas Joel-Poughkeepsie-Newburgh), and no mix of
-estimate vintages. `population` itself stays the ACS 1-year total; the two are different estimates and will not
-divide exactly. The same `growth_years` is used in every file; it is null only when no estimates were fetched.
-`growth` is **null** (never a guess) when:
-
-* |growth| > 25% (a sanity cap; no area comes near it);
-* for cities: the CBSA is not in the PEP metro file, or its member counties there differ from the OMB delineation
-  the rest of the map uses (`cbsa_delineation`). See `pipeline/build/growth.py`.
-
-Currently every city, every state and the nation have a rate. `check` fails if a state or the nation has none while
-`growth_years` is set, if rows disagree on `growth_years`, or if it does not end at nation.json `year`.
+* **Yields**: workers where they live (Censo anual de población 2024, INE), by CNAE section: `food` = A,
+  `production` = B+C+D+E+F (includes energy, water and waste), `science` = J+M, `culture` = R, `gold` = imputed GDP.
+  Members of 50-500 inhabitants only have a 4-sector split: they add `agricultura` to food and
+  `industria` + `construccion` to production, and nothing to science or culture (so those two are a floor).
+* **`gdp` is imputed** (`gdp_estimated: true`): INE publishes GDP for provinces, not municipalities. The GDP of each
+  province is split among ALL its municipalities by occupied residents (`E_m`; for a municipality absent from
+  ine_jobs, `pop_m` times the province's known employed/population ratio), and a city adds up its members. Per
+  province the parts add up to the published figure (1e-6); `check` verifies it from the `_economy_stats` interim.
+  Because the split follows employment, imputed GDP per head is almost a provincial constant, so
+  `ranks.gdp_per_capita` is `null` for every city.
+* **`footprint`**: land cell `h` belongs to a city when `sum(pop_m * f_mh over its members) / sum(pop_m * f_mh over
+  all municipalities) >= 0.5`, with `f_mh` from the `_world` interim `muni_weights` (each municipality's fractions
+  sum to 1). The city's own `cell` is always included, so it is never empty.
+* **`growth`**: sum of Censo 2026 population / sum of 2021 population - 1 over the members that have both, over
+  `growth_years = [2021, 2026]` (the end equals nation.json `year`).
+* **`ranks`**: 1 = highest among all cities, `null` where the value is null; non-null ranks are a permutation of
+  1..N, ties broken by population. **`peers`**: the 5 other cities closest in population by ratio
+  (|log(p / q)|), nearest first.
+* Null by design: `median_income`, `home_value`, `median_rent`, `rent_burden`, `unemployment`, `gdp_by_industry`,
+  `pop_series`.
 
 ## states.json
 
-A list in the same order as world.json `states`, each with the same economic fields as a city (`population`, `employed`,
-`yields`, `jobs`, medians, `unemployment`, `rent_burden`, `gdp`, …) plus `fips`, `abbr`, `name`,
-`growth`/`growth_years` (as above), `ranks: {yieldKey: 1..49}` (1 = largest), and `label: {x, y, angle, size}` (null
-for a state without hexes, i.e. DC). `label` is an optional suggested anchor for the big state name: `angle` in degrees
-clockwise, `size` a suggested font height in map km, clamped to 14..110 km. The 14 km minimum can exceed very small
-states (RI, DE), so the frontend should still clamp or hide those labels. The frontend may compute its own.
-
-Also, per state:
+A list in the order of world.json `states` (the 19 autonomous communities, CCAA):
 
 ```jsonc
-"land": {"forest": 0.312, "crop": 0.204, "pasture": 0.051, "grass": 0.12, "shrub": 0.08, "wetland": 0.06,
-         "developed": 0.044},   // or null (no hexes, i.e. DC)
-"energy": {"unit": "MW", "total": 30530,
-           "by_type": {"nuclear": 3937, "hydro": 0, "coal_plant": 0, "gas_plant": 5100, "geothermal": 0,
-                       "pumped_storage": 0, "wind": 0, "solar": 7250, "battery": 4200},
-           "sites": {"nuclear": 1, "hydro": 0, "...": 0},
-           "note": "Only the mapped sites in resources.json ... not the state's total capacity."}
+{
+  "fips": "13", "abbr": "MD", "name": "Comunidad de Madrid",   // INE CCAA code, ISO 3166-2 suffix
+  "population": 7000000,                // sum of its municipalities (each counted in its own CCAA, not by hexes)
+  "employed": 3300000, "jobs": {"a": 1, "...": 2},   // official INE totals by section (ine_jobs.regions.ccaa)
+  "jobs_source": "official",            // "municipal_sum" when the CCAA is missing there (member sums, undercount)
+  "yields": {"food": 1, "production": 2, "gold": 3.1e11, "science": 4, "culture": 5},
+  "income_per_person": 18000, "median_income": null,
+  "home_value": null, "median_rent": null, "rent_burden": null, "unemployment": null,
+  "gdp": 3.1e11, "gdp_year": 2023, "gdp_estimated": false, "gdp_by_industry": null,   // published (ine_gdp.ccaa), not summed
+  "growth": 0.03, "growth_years": [2021, 2026],
+  "ranks": {"population": 1, "gdp": 1, "gdp_per_capita": 3, "growth": 5, "food": 1, "production": 1, "gold": 1, "science": 1, "culture": 1},  // 1..19
+  "label": null                         // optional anchor {x, y, angle, size}; null here, the frontend computes its own
+}
 ```
-
-* **`land`**: land-cover shares as **0..1 fractions**: the mean of world.json `pct` over the state's cells
-  (`owner == index`) that have land-cover samples (`cover > 0`). Keys are world.json `pct` keys. `null` for a state
-  without such cells (DC).
-* **`energy`**: MW summed from resources.json items whose `cell` is in the state, for every resource type with unit
-  `MW` (all such types appear; `0` means no mapped site, a real zero for the map, not for the state). **It only counts
-  the mapped sites above each type's threshold** (e.g. gas plants ≥ 1,500 MW, wind ≥ 500 MW per hex; see the types'
-  `description`), so it is **not** the state's total generating capacity; `note` says so in plain words for the UI.
-  Items count in their resources.json `state`; a site EIA files once per state (Hoover Dam, AZ + NV) is one item
-  and counts in the state of its larger part. `sites` = number of mapped sites per type.
-  `energy` is `null` if resources.json was not built.
 
 ## nation.json
 
 ```jsonc
 {
-  "vintage": "ACS 2025 1-year", "year": 2025,
-  "gdp_vintage": "BEA CAGDP2, 2024",
-  "nation": { /* same economic shape as a city */ },
-  "yields": [{"key": "food", "icon": "y-food", "emoji": "🌾", "label": "Food", "color": "#7fbf3f",
-              "unit": "workers|usd", "description": "..."}],
-  "industries": {"agriculture": "Agriculture, forestry, fishing & hunting"}
+  "vintage": "INE: Censo anual de población 2026 y 2024 (ocupados), Contabilidad Regional 2023", "year": 2026,
+  "gdp_vintage": "INE, Contabilidad Regional de España",
+  "nation": {"name": "España", "population": 49000000, "employed": 21000000, "jobs": {"a": 1, "...": 2},
+             "yields": {"food": 1, "production": 2, "gold": 1.5e12, "science": 4, "culture": 5},
+             "income_per_person": 15000, "median_income": null,
+             "gdp": 1.5e12, "gdp_year": 2023, "growth": 0.04, "growth_years": [2021, 2026]},
+  "yields": [{"key": "food", "icon": "y-food", "emoji": "🌾", "label": "Comida", "color": "#7fbf3f",
+              "unit": "workers|usd", "industries": ["a"], "description": "..."}],   // unit "usd" = money (shown in euros)
+  "industries": {"a": "Agricultura, ganadería, silvicultura y pesca", "...": "...", "u": "..."},   // CNAE A..U, keys "a".."u"
+  "attribution": [{"data": "...", "source": "...", "license": "..."}]
 }
 ```
+
+`jobs`, `employed` and `gdp` of the nation are the published INE totals. In F0 (no statistics) `year` is `null`,
+`yields` and `industries` are empty and `cities.json` is `[]`. `check` requires, once `year` is set: `growth_years`
+ending at `year`, population, gdp and growth present, and `industries` keys equal to `nation.jobs` keys.
 
 ## lenses.json
 

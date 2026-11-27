@@ -15,14 +15,14 @@ export function initSearch(opts) {
   if (!input || !box) return { focus() {}, close() {}, get isOpen() { return false; } };
   // The full placeholder only fits the wide search box; narrower ones say just "Search".
   const narrow = matchMedia("(max-width: 1120px)");
-  const setPlaceholder = () => (input.placeholder = narrow.matches ? "Buscar" : "Buscar comunidades y municipios");
+  const setPlaceholder = () => (input.placeholder = narrow.matches ? "Buscar" : "Buscar ciudades, comunidades y municipios");
   setPlaceholder();
   narrow.addEventListener?.("change", setPlaceholder);
 
   const entries = [];
   for (const c of opts.cities || []) {
     entries.push({ kind: "city", city: c, name: c.name, n: norm(c.name), full: norm(c.full), pop: c.population || 0,
-      sub: c.full || "", label: c.name });
+      sub: c.full || "Área urbana", label: c.name });
   }
   (opts.states || []).forEach((s, index) => {
     if (!s) return;
@@ -71,7 +71,7 @@ export function initSearch(opts) {
 
   function render() {
     if (!results.length) {
-      box.innerHTML = input.value.trim() ? `<div class="sr-empty">Ningún municipio ni comunidad coincide con “${esc(input.value.trim())}”</div>` : "";
+      box.innerHTML = input.value.trim() ? `<div class="sr-empty">Ninguna ciudad, comunidad ni municipio coincide con “${esc(input.value.trim())}”</div>` : "";
       box.hidden = !input.value.trim();
       input.setAttribute("aria-expanded", String(!box.hidden));
       input.removeAttribute("aria-activedescendant");
