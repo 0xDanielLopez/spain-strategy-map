@@ -39,7 +39,7 @@ export function initPedia(data) {
       or to download a picture.</p>`,
     Yields: () => `
       ${h2("y-production", "⚙️", "Yields")}
-      <p>Civilization's yields mapped onto real measures. Job-based yields count <i>residents</i> employed in an industry
+      <p>Strategy-game yields mapped onto real measures. Job-based yields count <i>residents</i> employed in an industry
       (where workers live, not where they work). <b>Gold is GDP</b>: output per year, counted where the work is done.</p>
       <table>${data.nation.yields.map((y) => `<tr><td class="ic" style="color:${esc(y.color)}">${glyph(y, 26)}</td><td><b style="color:${esc(y.color)}">${esc(y.label)}${y.key === "gold" ? " (GDP)" : ""}</b><br>${esc(y.description)}</td></tr>`).join("")}</table>
       <h4>Amenities &amp; housing</h4>

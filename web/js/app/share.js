@@ -115,11 +115,11 @@ export function composeImage(info, { height = IMG_H } = {}) {
   ctx.fillStyle = "#ecd08e";
   ctx.font = `bold 36px ${SERIF}`;
   spaced(ctx, 5);
-  ctx.fillText("UNITED STATES", 112, cy + 2);
+  ctx.fillText("SPAIN", 112, cy + 2);
   spaced(ctx, 0);
   ctx.fillStyle = "#b9ab88";
   ctx.font = `italic 17px ${SERIF}`;
-  ctx.fillText("A strategy-map atlas of the real economy", 114, cy + 28);
+  ctx.fillText("Spain Strategy Map", 114, cy + 28);
 
   // Lens + legend ramp
   const mx = 640;
