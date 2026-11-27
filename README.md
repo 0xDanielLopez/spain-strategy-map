@@ -134,8 +134,11 @@ Ahora mismo solo están activos los trenes. adsb.lol responde 429 (demasiadas pe
 |---|---|---|
 | Posiciones y retrasos de trenes de Cercanías y Larga Distancia (GTFS-RT en JSON) | Renfe | CC BY 4.0 |
 | Posiciones ADS-B de aviones | [adsb.lol](https://adsb.lol/) | ODbL 1.0 |
+| Predicción municipal de hoy y mañana y avisos meteorológicos | [AEMET](https://www.aemet.es/) | Reutilización con cita, ver [nota legal](https://www.aemet.es/es/nota_legal) |
 
 El mapa muestra la atribución de cada capa activa: "Trenes: Renfe (CC BY 4.0)" y, cuando vuelvan los vuelos, "Vuelos: adsb.lol (ODbL)".
+
+**Tiempo oficial (AEMET).** Para las 68 ciudades el relé lee la predicción municipal de AEMET del municipio principal de cada una (hoy y mañana: cielo, temperatura máxima y mínima, probabilidad de lluvia y viento) y la lista de avisos meteorológicos vigentes (nivel amarillo, naranja o rojo y zona). Los valores se muestran tal como los publica AEMET, sin alterar su contenido técnico, y junto a cada predicción va la hora a la que AEMET la elaboró. Si AEMET no publica un dato, el mapa no pone nada, nunca un 0. Como pide su nota legal, la información va citada así: "Fuente: AEMET" y "© AEMET". No uso el nombre de AEMET para sugerir que patrocina o apoya este proyecto. La respuesta se guarda 30 minutos y cada refresco hace 68 peticiones (una por ciudad) más una de avisos, con 6 en paralelo. Si menos de la mitad de las ciudades responde, el relé sirve la última copia buena con `"stale": true`; una ciudad que falla sola sale con `"days": []`.
 
 **Frecuencia.** Renfe actualiza sus ficheros cada 30 s. El relé guarda cada respuesta 25 s, y el navegador la reutiliza 15 s. Si el origen falla o tarda más de 8 s, el relé sirve la última copia buena (hasta 6 h) con `"stale": true` y la cabecera `X-Live-Stale: 1`.
 
@@ -143,8 +146,9 @@ El mapa muestra la atribución de cada capa activa: "Trenes: Renfe (CC BY 4.0)" 
 
 - `GET /trains`: `{"updated", "source", "stale", "trains": [{"id", "net", "lat", "lon", "trip", "label", "delay", "status"}]}`
 - `GET /flights`: `{"updated", "source", "stale", "flights": [{"id", "type", "lat", "lon", "alt_ft", "gs_kt", "track"}]}`
+- `GET /weather`: `{"updated", "source", "stale", "cities": {"<id de ciudad>": {"ine", "name", "elaborado", "days": [{"date", "sky", "sky_text", "tmax", "tmin", "rain_prob", "wind_dir", "wind_kmh"}]}}, "warnings": [{"title", "level", "area", "link"}], "warnings_total"}`
 
-La conversión está en `live/worker/src/transform.js` (funciones puras) y se prueba con datos reales recortados:
+La conversión está en `live/worker/src/transform.js` y `live/worker/src/weather.js` (funciones puras; la lista de ciudades `live/worker/src/cities.js` la genera `tools/gen_live_cities.py` desde `web/data/cities.json`) y se prueba con datos reales recortados:
 
 ```
 cd live/worker && node --test test/*.test.mjs
@@ -157,7 +161,7 @@ cd live/worker && node --test test/*.test.mjs
 3. `npx wrangler login` y `npx wrangler deploy`. La cuenta se toma de tu entorno, no está en el repositorio.
 4. Copia la URL que imprime (`https://<nombre>.<tu-subdominio>.workers.dev`) en `web/js/ext/live/config.js`.
 
-**Presupuesto del plan gratuito de Workers.** Son 100.000 solicitudes al día, 10 ms de CPU por solicitud y 50 subpeticiones por solicitud. Una consulta a `/trains` hace 4 subpeticiones y una a `/flights` hace 3. Con los trenes activados, el mapa consulta cada 30 s: unas 2.900 solicitudes al día por visitante con la pestaña abierta todo el día (deja de consultar cuando la pestaña está oculta). Los vuelos sumarían otras tantas. En el plan gratuito eso da para unas treinta personas a la vez durante todo el día. La caché reduce las llamadas a los orígenes, no las solicitudes al Worker. Si el límite se agota, el mapa sigue funcionando sin la capa en directo.
+**Presupuesto del plan gratuito de Workers.** Son 100.000 solicitudes al día, 10 ms de CPU por solicitud y 50 subpeticiones por solicitud. Una consulta a `/trains` hace 4 subpeticiones y una a `/flights` hace 3. Un refresco de `/weather` hace 69, más de las 50 que permite el plan gratuito: mi despliegue usa el plan de pago de Workers (1.000 subpeticiones); en el gratuito hay que reducir las ciudades o repartir el refresco en dos. Con los trenes activados, el mapa consulta cada 30 s: unas 2.900 solicitudes al día por visitante con la pestaña abierta todo el día (deja de consultar cuando la pestaña está oculta). Los vuelos sumarían otras tantas. En el plan gratuito eso da para unas treinta personas a la vez durante todo el día. La caché reduce las llamadas a los orígenes, no las solicitudes al Worker. Si el límite se agota, el mapa sigue funcionando sin la capa en directo.
 
 ## Licencia
 

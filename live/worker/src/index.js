@@ -1,4 +1,6 @@
 import { trainsFrom, flightsFrom } from "./transform.js";
+import { parseForecast, parseWarnings } from "./weather.js";
+import { CITIES } from "./cities.js";
 
 const UA = "spain-strategy-map/1.0 (open-source map project)";
 const TIMEOUT_MS = 8000;
@@ -27,7 +29,66 @@ async function getJson(url) {
   }
 }
 
+const AEMET_FORECAST = "https://www.aemet.es/xml/municipios/localidad_";
+const AEMET_WARNINGS = "https://www.aemet.es/documentos_d/eltiempo/prediccion/avisos/rss/CAP_AFAE_wah_RSS.xml";
+const WEATHER_CONCURRENCY = 6;
+
+async function getText(url, encoding) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA, Accept: "application/xml, text/xml" },
+      signal: ctl.signal,
+    });
+    if (!res.ok) throw new Error(`upstream ${res.status}`);
+    const buf = await res.arrayBuffer();
+    return new TextDecoder(encoding).decode(buf);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function buildWeather() {
+  const cities = {};
+  let ok = 0;
+  let next = 0;
+  async function worker() {
+    while (next < CITIES.length) {
+      const c = CITIES[next++];
+      const entry = { ine: c.ine, name: c.name, elaborado: null, days: [] };
+      try {
+        const f = parseForecast(await getText(AEMET_FORECAST + c.ine + ".xml", "iso-8859-15"));
+        if (f.days.length) {
+          entry.elaborado = f.elaborado;
+          entry.days = f.days;
+          ok++;
+        }
+      } catch (_) {
+        /* city stays with days: [] */
+      }
+      cities[c.id] = entry;
+    }
+  }
+  const warningsP = getText(AEMET_WARNINGS, "utf-8").then(parseWarnings).catch(() => ({ warnings: [], warnings_total: null }));
+  await Promise.all(Array.from({ length: WEATHER_CONCURRENCY }, worker));
+  if (ok * 2 < CITIES.length) throw new Error(`aemet: only ${ok}/${CITIES.length} cities answered`);
+  const w = await warningsP;
+  return {
+    updated: new Date().toISOString(),
+    source: "AEMET",
+    stale: false,
+    cities,
+    warnings: w.warnings,
+    warnings_total: w.warnings_total,
+  };
+}
+
 const ROUTES = {
+  "/weather": {
+    fresh: 1800,
+    build: buildWeather,
+  },
   "/trains": {
     fresh: 25, // Renfe sends max-age=30
     async build() {

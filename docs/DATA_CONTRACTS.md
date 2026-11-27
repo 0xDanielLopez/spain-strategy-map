@@ -826,6 +826,25 @@ while the layer is on and the tab is visible, one request at a time, and keeps t
   draw aircraft on the ground.
 * Visible attribution: "Trenes: Renfe (CC BY 4.0) · Vuelos: adsb.lol (ODbL)".
 
+### Weather (AEMET)
+
+Optional layer "Tiempo hoy (AEMET)" (`web/js/ext/weather/`, off by default, `layers=weather` in the hash). The page
+reads the same relay as the live layers (`liveUrl()`), polls `/weather` every 30 min and on enable (only while the layer is
+on and the tab is visible, one request at a time) and keeps the last data on error ("sin datos de AEMET ahora").
+
+* `GET /weather` -> `{"updated": ISO, "source": "AEMET", "stale": bool, "cities": {"<city id>": {"ine": "28079",
+  "name": string, "elaborado": ISO|null, "days": [{"date": "YYYY-MM-DD", "sky": "11"|null, "sky_text": string|null,
+  "tmax": int|null, "tmin": int|null, "rain_prob": int|null, "wind_dir": "NE"|null, "wind_kmh": int|null}]}},
+  "warnings": [{"title": string, "level": "amarillo"|"naranja"|"rojo"|null, "area": string|null, "link": string|null}],
+  "warnings_total": int}`. `days` holds today and tomorrow and may be empty; every field may be `null` and is never shown
+  as 0. Warnings: at most 60.
+* Sky codes -> icon: 11 sol, 12 poco nuboso, 13 intervalos nubosos, 14-17 nuboso/cubierto, 23-26 and 43-46 lluvia, 51-64
+  tormenta, 33-36 and 71-74 nieve, 81-83 niebla/bruma/calima; a trailing `n` (night) is stripped; unknown -> text only.
+* Chip under each city: icon + "tmax° / tmin°", de-cluttered by population, drawn under the banners. Hover shows the
+  forecast for today and tomorrow plus "Predicción de AEMET elaborada el ..." (the `elaborado` time).
+* Visible credit: "Tiempo: © AEMET" (links to the AEMET legal note) and "N avisos activos" (click opens the list; warning
+  links open in a new tab with `rel=noopener`). The forecast text is shown as AEMET issued it.
+
 ### projection.json
 
 Built by `pipeline/build/projection.py` (REQUIRES `_world`). Every constant `web/js/geo/projection.js` needs to

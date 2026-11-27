@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>AEMET - Avisos de fenómenos meteorológicos adversos - España</title>
+    <link>https://www.aemet.es/es/eltiempo/prediccion/avisos</link>
+    <description>Avisos de fenómenos meteorológicos adversos según el Plan Meteoalerta de la Agencia Estatal de Meteorología (AEMET) para España.</description>
+    <language>es</language>
+    <copyright>https://www.aemet.es/es/nota_legal</copyright>
+    <pubDate>Fri, 27 Nov 2026 10:53:31 +0000</pubDate>
+    <lastBuildDate>Fri, 27 Nov 2026 10:53:31 +0000</lastBuildDate>
+    <image>
+      <title>AEMET - Avisos de fenómenos meteorológicos adversos - España</title>
+      <link>https://www.aemet.es/es/eltiempo/prediccion/avisos</link>
+      <url>https://www.aemet.es/imagenes/gif/logo_AEMET_web.gif</url>
+    </image>
+    <item>
+      <title>Aviso. Nivel amarillo. Lluvias. Este de La Palma</title>
+      <description>Aviso de precipitación acumulada en una hora de nivel amarillo de 00:00 28-11-2026 WET (UTC) a 14:59 28-11-2026 WET (UTC).</description>
+      <link>https://www.aemet.es/documentos_d/eltiempo/prediccion/avisos/cap/Z_CAP_C_LEMM_20261127105331_AFAZ659303PRP12815.xml</link>
+      <guid isPermaLink="false">Z_CAP_C_LEMM_20261127105331_AFAZ659303PRP12815.xml</guid>
+      <pubDate>Fri, 27 Nov 2026 10:53:31 +0000</pubDate>
+    </item>
+    <item>
+      <title>Aviso. Nivel amarillo. Nieblas. Vegas del Guadiana</title>
+      <description>Aviso de visibilidad de nivel amarillo de 00:00 29-11-2026 CET (UTC+1) a 11:59 29-11-2026 CET (UTC+1).</description>
+      <link>https://www.aemet.es/documentos_d/eltiempo/prediccion/avisos/cap/Z_CAP_C_LEMM_20261127103156_AFAZ700601NINI2911.xml</link>
+      <guid isPermaLink="false">Z_CAP_C_LEMM_20261127103156_AFAZ700601NINI2911.xml</guid>
+      <pubDate>Fri, 27 Nov 2026 10:31:56 +0000</pubDate>
+    </item>
+    <item>
+      <title>Aviso. Nivel amarillo. Nieblas. Tajo y Alagón</title>
+      <description>Aviso de visibilidad de nivel amarillo de 00:00 29-11-2026 CET (UTC+1) a 11:59 29-11-2026 CET (UTC+1).</description>
+      <link>https://www.aemet.es/documentos_d/eltiempo/prediccion/avisos/cap/Z_CAP_C_LEMM_20261127103156_AFAZ701002NINI2911.xml</link>
+      <guid isPermaLink="false">Z_CAP_C_LEMM_20261127103156_AFAZ701002NINI2911.xml</guid>
+      <pubDate>Fri, 27 Nov 2026 10:31:56 +0000</pubDate>
+    </item>
+    <item>
+      <title>Aviso. Nivel amarillo. Nieblas. Valle del Guadiana</title>
+      <description>Aviso de visibilidad de nivel amarillo de 23:00 27-11-2026 CET (UTC+1) a 11:59 28-11-2026 CET (UTC+1).</description>
+      <link>https://www.aemet.es/documentos_d/eltiempo/prediccion/avisos/cap/Z_CAP_C_LEMM_20261127100705_AFAZ681303NINI2811.xml</link>
+      <guid isPermaLink="false">Z_CAP_C_LEMM_20261127100705_AFAZ681303NINI2811.xml</guid>
+      <pubDate>Fri, 27 Nov 2026 10:07:05 +0000</pubDate>
+    </item>
+    <item>
+      <title>Aviso. Nivel amarillo. Nieblas. Vegas del Guadiana</title>
+      <description>Aviso de visibilidad de nivel amarillo de 23:00 27-11-2026 CET (UTC+1) a 11:59 28-11-2026 CET (UTC+1).</description>
+      <link>https://www.aemet.es/documentos_d/eltiempo/prediccion/avisos/cap/Z_CAP_C_LEMM_20261127084633_AFAZ700601NINI2811.xml</link>
+      <guid isPermaLink="false">Z_CAP_C_LEMM_20261127084633_AFAZ700601NINI2811.xml</guid>
+      <pubDate>Fri, 27 Nov 2026 08:46:33 +0000</pubDate>
+    </item>
+    <item>
+      <title>Aviso. Nivel amarillo. Nieblas. La Siberia extremeña</title>
+      <description>Aviso de visibilidad de nivel amarillo de 23:00 27-11-2026 CET (UTC+1) a 11:59 28-11-2026 CET (UTC+1).</description>
+      <link>https://www.aemet.es/documentos_d/eltiempo/prediccion/avisos/cap/Z_CAP_C_LEMM_20261127084633_AFAZ700602NINI2811.xml</link>
+      <guid isPermaLink="false">Z_CAP_C_LEMM_20261127084633_AFAZ700602NINI2811.xml</guid>
+      <pubDate>Fri, 27 Nov 2026 08:46:33 +0000</pubDate>
+    </item>
+  </channel>
+</rss>
