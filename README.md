@@ -39,6 +39,9 @@ Fases F0 (mapa base), F1 (lentes del INE), F2 (ciudades), F3 (capas del mapa) y 
 
 - Nuevas lentes: vivienda (viviendas no principales y turísticas del Censo 2021 y de la estadística experimental del INE, plazas turísticas, viviendas por km2), población (llegadas desde el extranjero, variación de extranjeros 2021-2026, nacidos en el extranjero) y seguridad (infracciones penales y robos con fuerza en domicilios por 1.000 habitantes). La seguridad solo cubre los 427 municipios que publica Interior, así que muchos hexágonos salen sin dato, nunca con 0. Son hechos registrados por la policía, no miden la seguridad real ni cuentan a la población flotante.
 - Consejero de Transparencia (Escribano Mayor): seguridad por territorio y municipio, disposiciones del BOJA y contratación menor de la Junta de Andalucía. Solo agregados: no publico nombres de personas ni de adjudicatarios, ni textos de anuncios. Ver [PRIVACY.md](PRIVACY.md).
+- Deslizador de años en cinco lentes: renta, edad media, mayores de 65 y tamaño del hogar de 2015 a 2024, y densidad de 2021 a 2026. Todos los años usan la misma escala de color, para poder compararlos. La renta va en euros de cada año, sin ajustar por inflación. El año queda en el enlace (`#lens=income&y=2019`).
+- Consejero Comparar: los 8 municipios más parecidos a uno (distancia entre indicadores del INE estandarizados; es un parecido estadístico, no una valoración) y dos municipios cara a cara, indicador a indicador, con la mediana de España.
+- Mapas de ciudad con hexágonos de 150 a 300 m y secciones censales (ver "Mapas de ciudad").
 
 Los Consejeros de defensa y prosperidad siguen ocultos: no tengo datos abiertos para ellos. Los pasajeros de los aeropuertos vienen de Eurostat (a partir de datos de Aena); no uso toneladas de los puertos, porque vienen de Puertos del Estado.
 
