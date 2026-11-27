@@ -29,7 +29,7 @@ async function getJson(url) {
 
 const ROUTES = {
   "/trains": {
-    fresh: 20,
+    fresh: 25, // Renfe sends max-age=30
     async build() {
       const [pc, pl, tc, tl] = await Promise.all([
         getJson(R + "vehicle_positions.json"),
@@ -43,9 +43,12 @@ const ROUTES = {
   "/flights": {
     fresh: 25,
     async build() {
-      const settled = await Promise.allSettled(ADSB.map(getJson));
-      const ok = settled.filter((s) => s.status === "fulfilled").map((s) => s.value);
-      if (!ok.length) throw new Error("all adsb circles failed: " + settled.map((s) => String(s.reason && s.reason.message || s.reason)).join("; "));
+      // One circle at a time: adsb.lol rate-limits bursts.
+      const ok = [], errs = [];
+      for (const url of ADSB) {
+        try { ok.push(await getJson(url)); } catch (e) { errs.push(String(e && e.message || e)); }
+      }
+      if (!ok.length) throw new Error("all adsb circles failed: " + errs.join("; "));
       return flightsFrom(ok);
     },
   },

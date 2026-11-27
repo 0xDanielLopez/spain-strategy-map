@@ -9,7 +9,7 @@ import { esc, int } from "../../format.js";
 
 const ATTRIBUTION = ["Trenes: Renfe (CC BY 4.0)", "Vuelos: adsb.lol (ODbL)"].filter((_, i) => ENABLED[["trains", "flights"][i]]).join(" · ");
 const FEEDS = {
-  trains: { path: "trains", key: "trains", every: 20000, label: "Trenes en directo", short: "Trenes", icon: "🚆", title: "Posición de los trenes de Renfe (Cercanías y Larga distancia), cada 20 s" },
+  trains: { path: "trains", key: "trains", every: 30000, label: "Trenes en directo", short: "Trenes", icon: "🚆", title: "Posición de los trenes de Renfe (Cercanías y Larga distancia), cada 30 s" },
   flights: { path: "flights", key: "flights", every: 30000, label: "Vuelos en directo", short: "Vuelos", icon: "✈️", title: "Aviones comerciales en vuelo sobre España (adsb.lol), cada 30 s" },
 };
 const TIMEOUT_MS = 15000;

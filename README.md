@@ -120,7 +120,7 @@ la muestreo cada 1 km dentro de cada hexágono. Algunas clases no significan lo 
 
 El mapa puede dibujar encima los trenes de Renfe y los vuelos comerciales que hay ahora mismo sobre España. Los trenes salen con su retraso cuando Renfe lo publica (si no lo publica, no pongo nada, nunca un 0). Los vuelos son solo de aerolíneas, con su indicativo de vuelo, tipo de avión, altitud, velocidad y rumbo. No muestro matrículas, identificadores del transpondedor ni aviones militares.
 
-Ahora mismo solo están activos los trenes. adsb.lol responde 429 (demasiadas peticiones) a las direcciones compartidas de Cloudflare Workers, así que la capa de vuelos está apagada en `web/js/ext/live/config.js` hasta que el relé pueda leerla.
+Ahora mismo solo están activos los trenes. adsb.lol responde 429 (demasiadas peticiones) a las consultas del relé, así que la capa de vuelos está apagada en `web/js/ext/live/config.js` hasta que el relé pueda leerla.
 
 | Datos | Editor | Licencia |
 |---|---|---|
@@ -129,7 +129,7 @@ Ahora mismo solo están activos los trenes. adsb.lol responde 429 (demasiadas pe
 
 El mapa muestra la atribución de cada capa activa: "Trenes: Renfe (CC BY 4.0)" y, cuando vuelvan los vuelos, "Vuelos: adsb.lol (ODbL)".
 
-**Frecuencia.** Renfe actualiza sus ficheros cada 30 s. El relé guarda cada respuesta 20 s (trenes) o 25 s (vuelos), y el navegador la reutiliza 15 s. Si el origen falla o tarda más de 8 s, el relé sirve la última copia buena (hasta 6 h) con `"stale": true` y la cabecera `X-Live-Stale: 1`.
+**Frecuencia.** Renfe actualiza sus ficheros cada 30 s. El relé guarda cada respuesta 25 s, y el navegador la reutiliza 15 s. Si el origen falla o tarda más de 8 s, el relé sirve la última copia buena (hasta 6 h) con `"stale": true` y la cabecera `X-Live-Stale: 1`.
 
 **Por qué hay un relé.** Ni Renfe ni adsb.lol envían cabeceras CORS, así que el navegador no puede pedirles los datos directamente. Un Cloudflare Worker sin dependencias (`live/worker/`) los descarga, los reduce al formato que usa el mapa y los devuelve con CORS solo para los orígenes de `ALLOWED_ORIGINS`:
 
@@ -149,7 +149,7 @@ cd live/worker && node --test test/*.test.mjs
 3. `npx wrangler login` y `npx wrangler deploy`. La cuenta se toma de tu entorno, no está en el repositorio.
 4. Copia la URL que imprime (`https://<nombre>.<tu-subdominio>.workers.dev`) en `web/js/ext/live/config.js`.
 
-**Presupuesto del plan gratuito de Workers.** Son 100.000 solicitudes al día, 10 ms de CPU por solicitud y 50 subpeticiones por solicitud. Una consulta a `/trains` hace 4 subpeticiones y una a `/flights` hace 3. Con los trenes activados, el mapa consulta cada 20 s: unas 4.300 solicitudes al día por visitante con la pestaña abierta todo el día (deja de consultar cuando la pestaña está oculta). Los vuelos, cada 30 s, sumarían unas 2.900. El plan aguanta a unas veinte personas a la vez durante todo el día. La caché reduce las llamadas a los orígenes, no las solicitudes al Worker. Si el límite se agota, el mapa sigue funcionando sin la capa en directo.
+**Presupuesto del plan gratuito de Workers.** Son 100.000 solicitudes al día, 10 ms de CPU por solicitud y 50 subpeticiones por solicitud. Una consulta a `/trains` hace 4 subpeticiones y una a `/flights` hace 3. Con los trenes activados, el mapa consulta cada 30 s: unas 2.900 solicitudes al día por visitante con la pestaña abierta todo el día (deja de consultar cuando la pestaña está oculta). Los vuelos sumarían otras tantas. En el plan gratuito eso da para unas treinta personas a la vez durante todo el día. La caché reduce las llamadas a los orígenes, no las solicitudes al Worker. Si el límite se agota, el mapa sigue funcionando sin la capa en directo.
 
 ## Licencia
 
