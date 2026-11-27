@@ -13,13 +13,16 @@ import { frameNation } from "./core/frame.js";
 import { esc, el } from "./core/util.js";
 import { icon } from "../../ui/icon.js";
 
-// Only the advisors Spain has data for. The others (prosperity, military, commerce, culture, energy) are not listed
+// Only the advisors Spain has data for. The others (prosperity, military) are not listed
 // here, so they are neither in the council nor reachable by #advisor=<id>: an unknown id falls back to the council.
 export const ADVISORS = [
   { id: "economy", name: "Economía", role: "Tesorero", color: "#c9a43a", dark: "#3a2c08", blurb: "Quién produce qué: ocupados por sector (CNAE), PIB y las áreas urbanas que lideran.", load: () => import("./views/economy.js") },
   { id: "people", name: "Población", role: "Guardián del Censo", color: "#c46a4f", dark: "#3a140c", blurb: "Dónde vive la gente, dónde crece, qué edad tiene y cuántos residentes son de nacionalidad extranjera.", load: () => import("./views/people.js") },
   { id: "knowledge", name: "Formación y perfil profesional", role: "Maestro de Formación", color: "#4a86d6", dark: "#0a1c3a", blurb: "Titulaciones superiores y empleo en información, ciencia y actividades profesionales.", load: () => import("./views/knowledge.js") },
   { id: "land", name: "Territorio", role: "Agrimensor General", color: "#6e9a3c", dark: "#18280a", blurb: "Bosque, cultivo, matorral y superficie construida: qué cubre el país.", load: () => import("./views/land.js") },
+  { id: "energy", name: "Energía", role: "Jefe de Energía", color: "#d98a2b", dark: "#3a1f08", blurb: "Centrales nucleares, hidroeléctricas y de gas del inventario de 2021, con su potencia.", load: () => import("./views/energy.js") },
+  { id: "commerce", name: "Infraestructuras", role: "Maestro de Obras", color: "#2fa4b8", dark: "#062630", blurb: "Puertos, aeropuertos y red de carreteras y ferrocarril, sin cifras de tráfico.", load: () => import("./views/commerce.js") },
+  { id: "culture", name: "Patrimonio y parques", role: "Guardián del Patrimonio", color: "#c25b9a", dark: "#2e0c22", blurb: "Bienes del Patrimonio Mundial de la UNESCO y parques nacionales, por comunidad.", load: () => import("./views/culture.js") },
   { id: "explorer", name: "Explorador", role: "Cartógrafo", color: "#9a7bc9", dark: "#1e1236", blurb: "Disecciona cada número: cualquier nivel, columnas y gráfico.", load: () => import("./views/explorer.js") },
 ];
 const byId = new Map(ADVISORS.map((a) => [a.id, a]));
@@ -28,6 +31,7 @@ const COUNCIL = (() => {
   const g = [
     { label: "Riqueza y trabajo", ids: ["economy"] },
     { label: "Personas y territorio", ids: ["people", "knowledge", "land"] },
+    { label: "Energía, infraestructuras y patrimonio", ids: ["energy", "commerce", "culture"] },
     { label: "Tus propias preguntas", ids: ["explorer"] },
   ];
   const listed = new Set(g.flatMap((x) => x.ids));

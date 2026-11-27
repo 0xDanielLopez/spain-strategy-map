@@ -1,110 +1,80 @@
 // Hover tooltips for the map-art layers (HTML strings; every data value is escaped). Each says where the number comes
-// from and the caveat that matters for it (FAF values are model estimates; bases have no published headcount; the
-// trade arc is a drawing aid; curated landmarks are an editorial pick).
-import { esc, compact, int, pct } from "../../format.js";
-import { FORT_KINDS, fortKind, WONDER_KINDS } from "../../render/art/sites.js";
-import { MODE_STYLE } from "../../render/art/improvements.js";
+// from and the caveat that matters for it. A null value is never shown as 0: the line is left out or says "sin dato".
+// Spain has no port tonnage or airport passenger figures in this build (not openly licensed), so those lines only
+// appear when a file brings them.
+import { esc, compact, int } from "../../format.js";
+import { portClass } from "./model.js";
 
 const muted = (s) => `<span class="muted">${s}</span>`;
-const num = (n, d = 1) => (n == null || !Number.isFinite(n) ? "–" : compact(n));
-const sign = (x) => (x > 0 ? "+" : x < 0 ? "−" : "±");
+const isNum = (n) => typeof n === "number" && Number.isFinite(n);
+const num = (n) => (isNum(n) ? compact(n) : "sin dato");
+const dec = (n, d = 1) => n.toFixed(d).replace(".", ",");
 
-function usd(n) {
-  if (n == null || !Number.isFinite(n)) return "–";
-  const a = Math.abs(n);
-  const d = (x, k) => x.toFixed(k).replace(".", ",");
-  if (a >= 1e12) return `${d(n / 1e12, 2)} billones de €`;
-  if (a >= 1e9) return `${d(n / 1e9, a >= 1e10 ? 1 : 2)} mil millones de €`;
-  if (a >= 1e6) return `${d(n / 1e6, 1)} millones de €`;
-  return `${int(n)} €`;
+const HUB_NAME = { L: "Aeropuerto grande", M: "Aeropuerto mediano", S: "Aeropuerto pequeño", N: "Aeropuerto principal" };
+const AIRPORT_TYPE = { large_airport: "Aeropuerto grande", medium_airport: "Aeropuerto mediano", small_airport: "Aeropuerto pequeño", heliport: "Helipuerto", seaplane_base: "Base de hidroaviones", closed: "Aeropuerto cerrado" };
+const PORT_CLASS = ["Puerto de primer orden", "Puerto importante", "Puerto"];
+const ROAD_CLASS = { 0: "Autopista o autovía", 1: "Carretera principal" };
+const RAIL_TIER = { 0: "Línea ferroviaria principal", 1: "Línea ferroviaria secundaria" };
+const WONDER_KIND = { natural: "Espacio natural", recreation: "Espacio natural", coastal: "Espacio natural", monument: "Monumento", landmark: "Bien cultural", university: "Universidad" };
+const RESOURCE_NOTE = "inventario de 2021";
+
+const where = (...parts) => esc(parts.filter((p) => p != null && p !== "").join(", "));
+
+/** The visible rule label of a heritage/park item: "Patrimonio mundial" or "Parque nacional". */
+function wonderRule(x, rule) {
+  const id = String(x.rule || rule?.id || "");
+  const label = String(rule?.name || rule?.label || "");
+  const hay = `${id} ${label} ${x.rule_name || ""}`.toLowerCase();
+  if (/world|heritage|unesco|mundial/.test(hay)) return "Patrimonio mundial";
+  if (/park|parque/.test(hay)) return "Parque nacional";
+  return label || x.rule_name || "";
 }
 
-const HUB_NAME = { L: "Aeropuerto grande", M: "Aeropuerto mediano", S: "Aeropuerto pequeño", N: "Aeropuerto principal sin hub" };
-const PORT_TYPE = { coastal: "Puerto costero", great_lakes: "Puerto de los Grandes Lagos", inland: "Puerto fluvial" };
-
 export const tips = {
-  port(p, m) {
-    const yr = p.year ?? "";
-    const lines = [
-      `<b>${esc(p.name)}</b> ${muted(`${esc(PORT_TYPE[p.type] || "Puerto")}, ${esc(p.state || "")}`)}`,
-      `n.º ${esc(p.rank)} por tonelaje · <b>${num(p.tons)}</b> toneladas (${esc(yr)})`,
-    ];
-    if (p.foreign != null || p.domestic != null) lines.push(`Exterior ${num(p.foreign)} · nacional ${num(p.domestic)}`);
-    if (p.imports != null || p.exports != null) lines.push(`Importaciones ${num(p.imports)} · exportaciones ${num(p.exports)}`);
-    lines.push(muted("Puertos principales; situados en el centro del área portuaria (los puertos fluviales largos son aproximados)."));
+  port(p) {
+    const cls = PORT_CLASS[portClass(p)] || "Puerto";
+    const lines = [`<b>${esc(p.name || "Puerto")}</b> ${p.state ? muted(esc(p.state)) : ""}`.trim(), esc(cls)];
+    if (isNum(p.tons)) lines.push(`<b>${num(p.tons)}</b> toneladas${p.year ? ` (${esc(p.year)})` : ""}`);
+    else lines.push(muted("Sin cifras de tráfico: no hay datos con licencia abierta."));
+    if (isNum(p.scalerank)) lines.push(muted(`Categoría ${esc(p.scalerank)} de Natural Earth (0 = mayor)`));
     return lines.join("<br>");
   },
   airport(a) {
-    const lines = [`<b>${esc(a.id)} · ${esc(a.name)}</b> ${muted(esc([a.city, a.state].filter(Boolean).join(", ")))}`];
-    lines.push(a.hub ? esc(HUB_NAME[a.hub] || a.hub) : "Aeropuerto de carga (no es un aeropuerto principal de pasajeros)");
-    if (a.enplanements != null) {
-      let ch = "";
-      if (a.enplanements_prev > 0) {
-        const r = a.enplanements / a.enplanements_prev - 1;
-        ch = ` (${sign(r)}${Math.abs(r * 100).toFixed(1).replace(".", ",")} % sobre ${a.year - 1})`;
-      }
-      lines.push(`<b>${num(a.enplanements)}</b> embarques en ${esc(a.year)}${ch}`);
-    }
-    if (a.cargo_lbs != null) lines.push(`Peso de carga aterrizada ${num(a.cargo_lbs)} lb`);
-    lines.push(muted("Datos anuales de embarques y carga."));
+    const kind = a.hub ? HUB_NAME[a.hub] || a.hub : AIRPORT_TYPE[a.type] || "Aeropuerto";
+    const lines = [`<b>${esc([a.id, a.name].filter(Boolean).join(" · ") || "Aeropuerto")}</b> ${a.city ? muted(esc(a.city)) : ""}`.trim(), esc(kind)];
+    if (isNum(a.passengers)) lines.push(`<b>${num(a.passengers)}</b> pasajeros${a.year ? ` (${esc(a.year)})` : ""}`);
+    else lines.push(muted("Sin cifras de pasajeros: no hay datos con licencia abierta."));
     return lines.join("<br>");
   },
-  fort(f, m) {
-    const comp = m.data.military?.components?.find((c) => c.id === f.component);
-    const name = comp?.name || FORT_KINDS[fortKind(f.component)]?.name || "Instalación de defensa";
-    const tier = { major: "Instalación principal", base: "Base", site: "Instalación" }[f.tier] || "";
-    const status = { act: "", semi: " · semiactiva", care: " · en mantenimiento" }[f.status] ?? "";
-    const lines = [
-      `<b>${esc(f.name)}</b> ${muted(esc(f.state || ""))}`,
-      `${esc(name)}${f.joint ? " · base conjunta" : ""} · ${esc(tier)}${esc(status)}`,
-    ];
-    if (f.area_km2 != null) lines.push(`Perímetro ${int(f.area_km2)} km²`);
-    lines.push(muted("Tamaño según la superficie: no se publica el personal de cada base."));
-    return lines.join("<br>");
+  road(r) {
+    const cls = typeof r?.class === "string" ? r.class : ROAD_CLASS[r?.cls ?? r?.class];
+    return [`<b>${esc(r?.name || "Carretera")}</b>`, esc(cls || "Carretera")].join("<br>");
   },
-  range(r, m) {
-    const comp = m.data.military?.components?.find((c) => c.id === r.component);
-    return [
-      `<b>${esc(r.name)}</b> ${muted(esc(r.state || ""))}`,
-      `Terreno restringido · ${esc(comp?.name || "")} · ${int(r.area_km2)} km²`,
-      muted("Uno de los 30 mayores recintos de defensa, dibujado sobre las casillas que cubre."),
-    ].join("<br>");
+  rail(r) {
+    const tier = typeof r?.tier === "string" ? r.tier : RAIL_TIER[r?.tier];
+    return [`<b>${esc(r?.name || "Ferrocarril")}</b>`, esc(tier || "Línea ferroviaria")].join("<br>");
+  },
+  /** A resource site (resources.json item): the type name, the value in MW and the detail. */
+  resource(it, typeName) {
+    const lines = [`<b>${esc(it.name || typeName || "Recurso")}</b> ${it.state ? muted(esc(it.state)) : ""}`.trim()];
+    if (typeName && it.name) lines.push(esc(typeName));
+    if (isNum(it.value)) lines.push(`<b>${it.value >= 100 ? int(it.value) : dec(it.value)}</b> MW de capacidad`);
+    if (it.detail) lines.push(esc(it.detail));
+    lines.push(muted(`Datos del ${RESOURCE_NOTE}.`));
+    return lines.join("<br>");
   },
   wonder(x, m) {
-    const k = WONDER_KINDS[x.kind]?.name || "Maravilla";
     const rule = m.data.wonders?.rules?.find((r) => r.id === x.rule);
+    const ruleName = wonderRule(x, rule);
     const mt = x.metrics || {};
-    const lines = [`<b>${esc(x.name)}</b> ${muted(esc([x.state].filter(Boolean).join("")))}`];
-    if (x.kind === "university") {
-      lines.push(`${esc(k)} · n.º ${esc(x.rank)} por gasto en investigación`);
-      if (mt.rd_usd != null) lines.push(`I+D ${usd(mt.rd_usd)} (${esc(mt.year)})${mt.federal_usd != null ? `, ${pct(mt.federal_usd / mt.rd_usd, 0)} público` : ""}`);
-      if (mt.enrollment != null) lines.push(`${int(mt.enrollment)} estudiantes (${esc(mt.enrollment_year)})`);
-    } else if (x.curated) {
-      lines.push(`${esc(k)} · selección propia (no ordenada por datos)`);
-      if (mt.visits != null) lines.push(`${num(mt.visits)} visitas (${esc(mt.year)})`);
-      if (mt.designated) lines.push(`Hito histórico desde ${esc(mt.designated)}`);
-    } else {
-      lines.push(`${esc(k)} · n.º ${esc(x.rank)} por visitas${mt.unit_type ? ` entre ${esc(mt.unit_type === "National Park" ? "los parques nacionales" : "otros espacios protegidos")}` : ""}`);
-      if (mt.visits != null) lines.push(`<b>${num(mt.visits)}</b> visitas (${esc(mt.year)})${mt.visits_of ? ` ${muted(`(${esc(mt.visits_of)})`)}` : ""}`);
-      if (mt.area_km2 != null) lines.push(`${int(mt.area_km2)} km²`);
-    }
+    const lines = [`<b>${esc(x.name)}</b> ${x.state ? muted(where(x.state)) : ""}`.trim()];
+    lines.push(esc([ruleName, WONDER_KIND[x.kind]].filter((v, i, a) => v && a.indexOf(v) === i).join(" · ") || "Patrimonio y parques"));
+    if (isNum(mt.area_km2)) lines.push(`${int(mt.area_km2)} km²`);
+    if (isNum(mt.visits)) lines.push(`<b>${num(mt.visits)}</b> visitas${mt.year ? ` (${esc(mt.year)})` : ""}`);
+    if (mt.designated) lines.push(`Declarado en ${esc(mt.designated)}`);
+    const serial = x.serial_note || x.serial || mt.serial_note;
+    if (serial) lines.push(muted(esc(typeof serial === "string" ? serial : "Bien en serie: varios lugares bajo una sola declaración.")));
     if (rule?.text) lines.push(muted(esc(rule.text)));
-    return lines.join("<br>");
-  },
-  route(rt, m) {
-    const r = rt.route;
-    const t = m.data.trade || {};
-    const a = rt.a?.short || rt.a?.name || r.a, b = rt.b?.short || rt.b?.name || r.b;
-    const modes = Object.entries(r.modes || {}).filter(([, v]) => v >= 0.05).sort((p, q) => q[1] - p[1])
-      .map(([k, v]) => `${esc(MODE_STYLE[k]?.label || k)} ${Math.round(v * 100)}%`).join(" · ");
-    const com = t.commodities?.[r.top_commodity];
-    const lines = [
-      `<b>${esc(a)} ⇄ ${esc(b)}</b> ${muted(`ruta comercial n.º ${esc(r.rank)}`)}`,
-      `<b>${usd(r.value_musd * 1e6)}</b> de mercancías al año, ${num(r.tons_k * 1e3)} toneladas (estimación ${esc(t.year ?? "")})`,
-    ];
-    if (modes) lines.push(modes);
-    if (com) lines.push(`Mercancía principal: ${esc(com)}`);
-    lines.push(muted("Suma de ambos sentidos. Se dibuja como un arco entre la mayor ciudad de cada zona: los datos recogen dónde empieza y acaba la carga, no su ruta."));
     return lines.join("<br>");
   },
 };

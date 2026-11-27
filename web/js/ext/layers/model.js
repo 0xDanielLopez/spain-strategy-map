@@ -12,6 +12,21 @@
 // nearest free hex one ring out, leaning toward their true point; item.cell stays the true hex and item.drawCell is
 // where the glyph stands (item.nudged = true). Tooltips always describe the true site.
 import { prepareNetwork, prepareRoutes, portTier, airportTier } from "../../render/art/improvements.js";
+
+// Spanish ports have no tonnage (tons is null): their size class comes from the Natural Earth scalerank (0 = largest),
+// and the draw priority and zoom rule from the same class. A port with tons still uses the tonnage classes.
+const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+export function portClass(p) {
+  if (isNum(p?.tons)) return portTier(p);
+  const r = p?.scalerank;
+  return !isNum(r) ? 2 : r <= 2 ? 0 : r <= 5 ? 1 : 2;
+}
+// Airports: the hub class when given (L/M/S/N), else the OurAirports type; unknown = the smallest class.
+const AIRPORT_TYPE_TIER = { large_airport: 0, medium_airport: 2, small_airport: 3 };
+export function airportClass(a) {
+  if (a?.hub) return airportTier(a);
+  return AIRPORT_TYPE_TIER[a?.type] ?? 4;
+}
 import { prepareCellSet, fortKind, isAirfieldName } from "../../render/art/sites.js";
 import { metroSpill } from "../../render/art/city.js";
 
@@ -55,7 +70,7 @@ const RING = ring(0.52), CITY_RING = ring(0.64);
 // Zoom rules (hex radius in css px) and sizes (css px), per site kind. Exported for the gallery and the docs.
 export const SITE_RULES = {
   port: {
-    minRpx: (p) => (p.rank <= 12 ? 10 : p.rank <= 50 ? 22 : 40),
+    minRpx: (tier) => [10, 22, 40][tier] ?? 40,
     size: (tier, Rpx) => clamp(Rpx * [1.0, 0.86, 0.72][tier], 13, [66, 58, 50][tier]),
   },
   airport: {
@@ -83,12 +98,12 @@ export function createModel(w) {
     m.data[name] = data || null;
     if (name === "infrastructure") {
       m.net = data ? prepareNetwork(w, data) : null;
-      m.ports = (data?.ports || []).filter(okCell(w)).map((p) => ({
-        kind: "port", data: p, cell: p.cell, tier: portTier(p), prio: 300 + (p.rank || 999),
-        minRpx: SITE_RULES.port.minRpx(p), pref: waterAngle(w, p),
+      m.ports = (data?.ports || []).filter(okCell(w)).map((p, k) => ({
+        kind: "port", data: p, cell: p.cell, tier: portClass(p), prio: 300 + portClass(p) * 100 + (isNum(p.scalerank) ? p.scalerank : 9) * 5 + k * 0.01,
+        minRpx: SITE_RULES.port.minRpx(portClass(p)), pref: waterAngle(w, p),
       }));
       m.airports = (data?.airports || []).filter(okCell(w)).map((a, k) => {
-        const tier = airportTier(a);
+        const tier = airportClass(a);
         return { kind: "airport", data: a, cell: a.cell, tier, prio: 400 + tier * 1000 + k, minRpx: SITE_RULES.airport.minRpx(tier), pref: towards(w, a, 30) };
       });
     } else if (name === "military") {
@@ -103,7 +118,7 @@ export function createModel(w) {
         kind: "wonder", data: x, cell: x.cell, wkind: x.kind, prio: (x.rank || 99) * 4 + k * 0.01, minRpx: SITE_RULES.wonder.minRpx(),
         pref: 90, variant: hashStr(x.id) % 3, motif: wonderMotif(x),
       }));
-      m.parks = (data?.wonders || []).filter((x) => x.kind === "natural" && Array.isArray(x.cells) && x.cells.length > 1)
+      m.parks = (data?.wonders || []).filter((x) => x.kind !== "university" && Array.isArray(x.cells) && x.cells.length > 1)
         .map((x) => ({ wonder: x, ...prepareCellSet(w, x.cells) }));
     } else if (name === "trade") {
       m.routes = data ? prepareRoutes(w, data) : [];

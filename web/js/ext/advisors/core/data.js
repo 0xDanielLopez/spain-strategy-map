@@ -313,3 +313,19 @@ export function rowsHighlight(level, rows, opts = {}) {
   const label = opts.label ?? (one ? (one.level === "states" ? one.name : `${one.full || one.name}${one.sub ? `, ${one.sub}` : ""}`) : "");
   return { ...level.highlight(rows, opts), dimOthers: !!opts.dim, color: opts.color, label };
 }
+
+/** Footer for views whose files carry their own "attribution" [{data, source, license}] (open-licence layers):
+ *  the caveats, then one line per attribution. Strings come from the data files, so they are escaped here. */
+export function attributionHtml(files, caveats = []) {
+  const esc1 = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const seen = new Set(), rows = [];
+  for (const f of files) for (const a of f?.attribution || []) {
+    const k = `${a.data}|${a.source}`;
+    if (!seen.has(k)) { seen.add(k); rows.push(a); }
+  }
+  return `<footer class="adv-sources">
+    ${caveats.length ? `<h4>Ojo con la lectura</h4><ul class="adv-caveats">${caveats.map((c) => `<li>${c}</li>`).join("")}</ul>` : ""}
+    <h4>Fuentes</h4>
+    <ul>${rows.map((a) => `<li><b>${esc1(a.source)}</b>, ${esc1(a.data)} <span class="v">${esc1(a.license)}</span></li>`).join("")}</ul>
+  </footer>`;
+}

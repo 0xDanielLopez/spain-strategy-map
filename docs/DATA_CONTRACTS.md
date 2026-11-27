@@ -784,3 +784,24 @@ when renaming a field in those files.
 
 **Lenses.** Legend ticks print numbers only (plus short units: %, $, min, /km²); a longer `unit` is printed once under
 the ticks, so keep `unit` a plain phrase ("adherents per 100 residents"), not part of the number. `lens.note` is shown in the legend; `format: "category"` lenses get a swatch legend (see lenses.json).
+
+
+## Spain: infrastructure.json, resources.json, wonders.json (F3)
+
+Same shapes as the US sections above, with these changes (built by `pipeline/build/infrastructure.py`,
+`resources.py`, `wonders.py`; checked by `check.py` `check_map_layers`):
+
+* **infrastructure.json**: roads and rail from Natural Earth 1:10m v5.1.2 rasterised to hex links (class 0 = NE
+  `expressway == 1`, 1 = other major or secondary highways at scalerank <= 7; rail tier 0 = scalerank <= 5, 1 = 6-7);
+  links have no route name. Ports = Natural Earth ports in Spain (`scalerank`, `rank` by scalerank, `tons: null`).
+  Airports = OurAirports large and medium airports with scheduled service (`type`, `passengers: null`, `hub: null`;
+  names in Spanish, `city` = the municipality that contains the point). No traffic figures: they come from Aena and
+  Puertos del Estado, which this project does not use (`note`).
+* **resources.json**: WRI Global Power Plant Database v1.3 (2021 edition), Spain, only `nuclear`, `hydro`, `gas`
+  (every plant, no capacity cutoff; `value` = MW). Coal and oil are left out (most have closed since), wind and solar
+  too (the 2021 inventory is very incomplete). Summaries are of the plants shown, not Spain's capacity.
+* **wonders.json** (shown as "Patrimonio y parques"): Wikidata (CC0). Rule `patrimonio_mundial`: one entry per UNESCO
+  id (`unesco`, `qid`, `serial` for serial sites drawn at one representative point); rule `parque_nacional`: the 16
+  national parks. `metrics` is empty (no open visitor figures). Sites with no Spanish land cell within 2 hexes are left
+  out and counted in the build log.
+* Every file has `attribution` [{data, source, license}].

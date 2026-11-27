@@ -30,7 +30,7 @@ from pathlib import Path
 from .core.paths import INTERIM, WEB_DATA
 
 REQUIRED = ["world.json", "cities.json", "nation.json", "sources.json"]
-OPTIONAL = ["states.json", "lenses.json", "resources.json", "counties.json", "districts.json", "citizens.json"]
+OPTIONAL = ["states.json", "lenses.json", "resources.json", "infrastructure.json", "wonders.json", "counties.json", "districts.json", "citizens.json"]
 N_CCAA = 19
 LENS_FORMATS = {"int", "eur", "pct", "float", "minutes", "years", "category"}
 LENS_SCALES = {"linear", "log"}
@@ -674,6 +674,94 @@ def quality_rivers(r: Report, ctx: dict) -> None:
         r.ok(f"rivers: all {len(ctx['rivers'])} inside the map")
 
 
+TRAFFIC_KEYS = {"enplanements", "enplanements_prev", "cargo_lbs", "imports", "exports", "domestic", "foreign", "tons_total"}
+
+
+def _attr_ok(a) -> bool:
+    return isinstance(a, list) and bool(a) and all(
+        isinstance(x, dict) and x.get("data") and x.get("source") and x.get("license") for x in a)
+
+
+def check_map_layers(r: Report, docs: dict, world) -> None:
+    """Shape checks for infrastructure.json, resources.json and wonders.json against world.json."""
+    if not isinstance(world, dict) or not isinstance(world.get("owner"), list) or not isinstance(world.get("grid"), dict):
+        r.note("map layers: world.json unusable, skipped")
+        return
+    owner, water, g = world["owner"], world.get("water") or [], world["grid"]
+    n = len(owner)
+    cols, rad = g["cols"], g["radius"]
+    insets = world.get("insets") or []
+
+    def land(c) -> bool:
+        return is_int(c) and 0 <= c < n and owner[c] >= 0 and (not water or water[c] == 0)
+
+    def frame(c):
+        col, row = c % cols, c // cols
+        x, y = 3 ** 0.5 * rad * (col + 0.5 * (row & 1)), 1.5 * rad * row
+        return next((i["name"] for i in insets if i["x0"] <= x <= i["x1"] and i["y0"] <= y <= i["y1"]), None)
+
+    def traffic(obj, path="") -> list[str]:
+        if isinstance(obj, dict):
+            return [path + k for k in obj if k in TRAFFIC_KEYS] + [t for k, v in obj.items() for t in traffic(v, path + k + ".")]
+        if isinstance(obj, list):
+            return [t for v in obj[:400] for t in traffic(v, path)]
+        return []
+
+    inf = docs.get("infrastructure.json")
+    if inf is not None:
+        before = r.count("FAIL")
+        if not need_keys(r, "infrastructure.json", inf, ["roads", "rail", "ports", "airports", "attribution", "vintage"]):
+            return
+        if not _attr_ok(inf["attribution"]):
+            r.fail("infrastructure.json: attribution must be [{data, source, license}]")
+        for k in ("roads", "rail"):
+            links = inf[k]
+            badf = [l for l in links if not (isinstance(l, list) and len(l) >= 3 and is_int(l[0]) and is_int(l[1]) and 0 <= l[0] < n and 0 <= l[1] < n
+                                             and l[0] != l[1] and l[2] in (0, 1) and (land(l[0]) or land(l[1])) and -2 not in (owner[l[0]], owner[l[1]]))]
+            if badf:
+                r.fail(f"infrastructure.json {k}: {len(badf)} links are not [cell, cell, 0|1] with one end on Spanish land and none on foreign land (e.g. {_sample(badf, 3)})")
+            cross = sum(1 for l in links if isinstance(l, list) and len(l) >= 2 and is_int(l[0]) and is_int(l[1])
+                        and 0 <= l[0] < n and 0 <= l[1] < n and frame(l[0]) != frame(l[1]))
+            if cross:
+                r.fail(f"infrastructure.json {k}: {cross} links cross an inset frame")
+        for k in ("ports", "airports"):
+            badp = [p.get("id") for p in inf[k] if not land(p.get("cell")) or not p.get("name")]
+            if badp:
+                r.fail(f"infrastructure.json {k}: {len(badp)} sites without a Spanish land cell ({_sample(badp)})")
+        if any(p.get("tons") is not None for p in inf["ports"]) or any(a.get("passengers") is not None for a in inf["airports"]):
+            r.fail("infrastructure.json: traffic figures (tons, passengers) must be null (licence)")
+        if traffic(inf):
+            r.fail(f"infrastructure.json: traffic fields present: {_sample(traffic(inf))}")
+        if r.count("FAIL") == before:
+            r.ok(f"infrastructure.json: {len(inf['roads'])} road links, {len(inf['rail'])} rail links, {len(inf['ports'])} ports, "
+                 f"{len(inf['airports'])} airports; 0 cross an inset frame")
+
+    res = docs.get("resources.json")
+    if res is not None:
+        before = r.count("FAIL")
+        if not _attr_ok(res.get("attribution")):
+            r.fail("resources.json: attribution must be [{data, source, license}]")
+        bad = [i.get("name") for i in res.get("items") or [] if not land(i.get("cell"))
+               or (i.get("value") is not None and not (is_num(i["value"]) and i["value"] > 0))]
+        if bad:
+            r.fail(f"resources.json: {len(bad)} items without a Spanish land cell or with a non-positive value ({_sample(bad)})")
+        if traffic(res):
+            r.fail("resources.json: traffic fields present")
+        if r.count("FAIL") == before:
+            r.ok(f"resources.json: {len(res.get('items') or [])} items on Spanish land cells, attribution present")
+
+    wo = docs.get("wonders.json")
+    if wo is not None:
+        before = r.count("FAIL")
+        if not _attr_ok(wo.get("attribution")):
+            r.fail("wonders.json: attribution must be [{data, source, license}]")
+        bad = [w.get("id") for w in wo.get("wonders") or [] if not land(w.get("cell"))]
+        if bad:
+            r.fail(f"wonders.json: {len(bad)} sites without a Spanish land cell ({_sample(bad)})")
+        if r.count("FAIL") == before:
+            r.ok(f"wonders.json: {len(wo.get('wonders') or [])} sites on Spanish land cells, attribution present")
+
+
 # ---------------------------------------------------------------- entry point
 
 
@@ -772,6 +860,8 @@ def run(web_dir: Path = WEB_DATA, interim_dir: Path = INTERIM, quiet: bool = Fal
     if docs.get("lenses.json") is not None:
         check_lenses(r, docs["lenses.json"], ctx, source_ids)
         check_conservation(r, interim_dir, docs.get("nation.json"))
+
+    check_map_layers(r, docs, docs["world.json"])
 
     r.section("data quality")
     if ctx is None:

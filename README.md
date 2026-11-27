@@ -11,7 +11,7 @@ EE. UU. por datos abiertos de España y de Europa.
 
 ## Estado
 
-Fases F0 (mapa base), F1 (lentes del INE), F2 (ciudades) y F4 (Consejeros y vista de ciudad).
+Fases F0 (mapa base), F1 (lentes del INE), F2 (ciudades), F3 (capas del mapa) y F4 (Consejeros y vista de ciudad).
 
 - Hexágonos de 10 km de radio (unos 260 km2 cada uno, unos 1.950 de tierra en España).
 - Tierra y agua, relieve (llano, colinas, montañas, picos) y cobertura del suelo en cada hexágono.
@@ -33,8 +33,21 @@ Fases F0 (mapa base), F1 (lentes del INE), F2 (ciudades) y F4 (Consejeros y vist
 - Cinco Consejeros: economía, población, formación y perfil profesional, territorio y un explorador de ciudades,
   comunidades y municipios.
 
-Todavía no hay recursos ni infraestructura (fase F3), así que los Consejeros de energía, comercio, cultura, defensa y
-prosperidad están ocultos.
+- Capas del mapa: red principal esquemática de carreteras y ferrocarril, puertos y aeropuertos (sin cifras de
+  tráfico), centrales nucleares, hidroeléctricas y de gas del inventario de 2021, y patrimonio mundial y parques
+  nacionales. Tres Consejeros más: energía, infraestructuras y patrimonio y parques.
+
+Los Consejeros de defensa y prosperidad siguen ocultos: no tengo datos abiertos para ellos. Tampoco uso datos de
+pasajeros ni de mercancías, porque vienen de Aena y Puertos del Estado.
+
+### Qué no cuentan las capas
+
+- La red de carreteras y ferrocarril es arte de mapa de Natural Earth, no estadística.
+- Las centrales vienen del inventario de WRI de 2021, que ya no se actualiza. Dejo fuera el carbón y el petróleo,
+  porque la mayoría de esas centrales ha cerrado desde entonces, y la eólica y la solar, porque el inventario de 2021
+  está muy incompleto. Las sumas son de las centrales representadas, no la potencia instalada de España.
+- Un bien del patrimonio mundial formado por muchos lugares (como el Camino de Santiago) sale con un punto
+  representativo. Dos bienes compartidos con otros países no tienen punto en España.
 
 ### Rendimientos de las ciudades
 
@@ -79,6 +92,10 @@ uv run python -m pipeline serve     # abre http://127.0.0.1:8765
 | [Natural Earth 1:50m](https://www.naturalearthdata.com/) | Natural Earth | Dominio público | Países vecinos, lagos, ríos |
 | [INE](https://www.ine.es): Censo anual de población (tabla 73027), Atlas de distribución de renta de los hogares (30824, 30829, 30832), nivel de estudios (66620) | Instituto Nacional de Estadística | Reutilización permitida citando la fuente | Lentes por municipio |
 | INE: áreas urbanas funcionales 2026, ocupados por sector (69992, 70002, 69968), Contabilidad Regional (80109) | Instituto Nacional de Estadística | Reutilización permitida citando la fuente | Ciudades, rendimientos y PIB |
+| [Natural Earth 1:10m](https://www.naturalearthdata.com/) carreteras, ferrocarril y puertos | Natural Earth | Dominio público | Red principal esquemática, puertos |
+| [OurAirports](https://ourairports.com/data/) | OurAirports | Dominio público | Aeropuertos |
+| [Global Power Plant Database v1.3](https://datasets.wri.org/dataset/globalpowerplantdatabase) (2021) | World Resources Institute | CC BY 4.0 | Centrales nucleares, hidroeléctricas y de gas |
+| [Wikidata](https://www.wikidata.org/) | Wikimedia | CC0 | Patrimonio mundial y parques nacionales |
 
 El mapa muestra la línea de atribución en una esquina, como piden las condiciones de GISCO. El pipeline guarda la URL,
 el sha256, el tamaño y la fecha de cada fichero descargado en `web/data/sources.json`, y `web/data/world.json` lleva
