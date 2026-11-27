@@ -128,7 +128,7 @@ la muestreo cada 1 km dentro de cada hexágono. Algunas clases no significan lo 
 
 El mapa puede dibujar encima los trenes de Renfe y los vuelos comerciales que hay ahora mismo sobre España. Los trenes salen con su retraso cuando Renfe lo publica (si no lo publica, no pongo nada, nunca un 0). Los vuelos son solo de aerolíneas, con su indicativo de vuelo, tipo de avión, altitud, velocidad y rumbo. No muestro matrículas, identificadores del transpondedor ni aviones militares.
 
-Ahora mismo solo están activos los trenes. adsb.lol responde 429 (demasiadas peticiones) a las consultas del relé, así que la capa de vuelos está apagada en `web/js/ext/live/config.js` hasta que el relé pueda leerla.
+Ahora mismo están activos los trenes y el tiempo. adsb.lol cuenta las peticiones sin clave por dirección IP (500 al día) y los Workers comparten las suyas, así que el relé recibe 429. He pedido una clave gratuita (1.000 peticiones al día); con ella el relé consulta 4 círculos cada 6 minutos (960 al día) y la guarda como secreto del Worker (`wrangler secret put ADSB_LOL_KEY`), nunca en el repositorio. Hasta entonces la capa de vuelos está apagada en `web/js/ext/live/config.js`.
 
 | Datos | Editor | Licencia |
 |---|---|---|
@@ -161,7 +161,7 @@ cd live/worker && node --test test/*.test.mjs
 3. `npx wrangler login` y `npx wrangler deploy`. La cuenta se toma de tu entorno, no está en el repositorio.
 4. Copia la URL que imprime (`https://<nombre>.<tu-subdominio>.workers.dev`) en `web/js/ext/live/config.js`.
 
-**Presupuesto del plan gratuito de Workers.** Son 100.000 solicitudes al día, 10 ms de CPU por solicitud y 50 subpeticiones por solicitud. Una consulta a `/trains` hace 4 subpeticiones y una a `/flights` hace 3. Un refresco de `/weather` hace 69, más de las 50 que permite el plan gratuito: mi despliegue usa el plan de pago de Workers (1.000 subpeticiones); en el gratuito hay que reducir las ciudades o repartir el refresco en dos. Con los trenes activados, el mapa consulta cada 30 s: unas 2.900 solicitudes al día por visitante con la pestaña abierta todo el día (deja de consultar cuando la pestaña está oculta). Los vuelos sumarían otras tantas. En el plan gratuito eso da para unas treinta personas a la vez durante todo el día. La caché reduce las llamadas a los orígenes, no las solicitudes al Worker. Si el límite se agota, el mapa sigue funcionando sin la capa en directo.
+**Presupuesto del plan gratuito de Workers.** Son 100.000 solicitudes al día, 10 ms de CPU por solicitud y 50 subpeticiones por solicitud. Una consulta a `/trains` hace 4 subpeticiones y una a `/flights` hace 4. Un refresco de `/weather` hace 69, más de las 50 que permite el plan gratuito: mi despliegue usa el plan de pago de Workers (1.000 subpeticiones); en el gratuito hay que reducir las ciudades o repartir el refresco en dos. Con los trenes activados, el mapa consulta cada 30 s: unas 2.900 solicitudes al día por visitante con la pestaña abierta todo el día (deja de consultar cuando la pestaña está oculta). Los vuelos sumarían otras tantas. En el plan gratuito eso da para unas treinta personas a la vez durante todo el día. La caché reduce las llamadas a los orígenes, no las solicitudes al Worker. Si el límite se agota, el mapa sigue funcionando sin la capa en directo.
 
 ## Licencia
 

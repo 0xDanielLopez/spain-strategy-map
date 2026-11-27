@@ -8,18 +8,22 @@ const GOOD_TTL_S = 6 * 3600;
 const BROWSER_MAX_AGE = 15;
 
 const R = "https://gtfsrt.renfe.com/";
+// Four circles of 250 nm (the API's maximum radius): west, east and south of the peninsula (the east one reaches the
+// Balearics) and the Canaries. Requests are metered per key: 4 circles every 6 minutes = 960 a day.
 const ADSB = [
-  "https://api.adsb.lol/v2/lat/40.2/lon/-3.7/dist/250",
-  "https://api.adsb.lol/v2/lat/41.3/lon/2.6/dist/160",
-  "https://api.adsb.lol/v2/lat/28.4/lon/-15.6/dist/180",
+  "https://api.adsb.lol/v2/lat/40.6/lon/-6.6/dist/250",
+  "https://api.adsb.lol/v2/lat/40.4/lon/0.6/dist/250",
+  "https://api.adsb.lol/v2/lat/37.9/lon/-3.6/dist/250",
+  "https://api.adsb.lol/v2/lat/28.4/lon/-15.6/dist/250",
 ];
+const FLIGHTS_FRESH_S = 360;
 
-async function getJson(url) {
+async function getJson(url, extra = {}) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS);
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": UA, Accept: "application/json" },
+      headers: { "User-Agent": UA, Accept: "application/json", ...extra },
       signal: ctl.signal,
     });
     if (!res.ok) throw new Error(`upstream ${res.status}`);
@@ -102,12 +106,15 @@ const ROUTES = {
     },
   },
   "/flights": {
-    fresh: 25,
-    async build() {
+    fresh: FLIGHTS_FRESH_S,
+    async build(env) {
+      // The key is a Worker secret (wrangler secret put ADSB_LOL_KEY), never in the repo. Without it adsb.lol counts
+      // requests per IP, and Workers share theirs.
+      const key = env && env.ADSB_LOL_KEY ? { "x-api-key": env.ADSB_LOL_KEY } : {};
       // One circle at a time: adsb.lol rate-limits bursts.
       const ok = [], errs = [];
       for (const url of ADSB) {
-        try { ok.push(await getJson(url)); } catch (e) { errs.push(String(e && e.message || e)); }
+        try { ok.push(await getJson(url, key)); } catch (e) { errs.push(String(e && e.message || e)); }
       }
       if (!ok.length) throw new Error("all adsb circles failed: " + errs.join("; "));
       return flightsFrom(ok);
@@ -197,7 +204,7 @@ async function serve(route, request, env, ctx) {
 
   let pending = inflight.get(route);
   if (!pending) {
-    pending = cfg.build().finally(() => inflight.delete(route));
+    pending = cfg.build(env).finally(() => inflight.delete(route));
     inflight.set(route, pending);
   }
   try {

@@ -13,7 +13,7 @@ globalThis.caches = {
 let fail = false;
 const calls = [];
 globalThis.fetch = async (url, init) => {
-  calls.push({ url, ua: init.headers["User-Agent"] });
+  calls.push({ url: String(url), ua: init.headers["User-Agent"], key: init.headers["x-api-key"] });
   if (fail) throw new Error("down");
   const u = String(url);
   const body = u.includes("vehicle_positions_LD") ? fx("vehicle_positions_LD")
@@ -47,7 +47,7 @@ test("flights route and stale fallback", async () => {
   assert.ok(f.flights.length > 0 && f.stale === false);
   // force expiry of the fresh copy, then break upstream
   const real = Date.now;
-  Date.now = () => real() + 60_000;
+  Date.now = () => real() + 400_000; // the fresh copy lasts 360 s
   fail = true;
   try {
     const res = await worker.fetch(req("/flights"), env, ctx);
@@ -55,4 +55,23 @@ test("flights route and stale fallback", async () => {
     assert.equal(res.headers.get("X-Live-Stale"), "1");
     assert.equal((await res.json()).stale, true);
   } finally { Date.now = real; fail = false; }
+});
+
+test("flights: 4 circles, the key goes only to adsb.lol and only when the secret exists", async () => {
+  const real = Date.now;
+  Date.now = () => real() + 800_000; // past the fresh copy
+  try {
+    calls.length = 0;
+    await worker.fetch(req("/flights"), { ...env, ADSB_LOL_KEY: "test-key" }, ctx);
+    const adsb = calls.filter((c) => c.url.includes("api.adsb.lol"));
+    assert.equal(adsb.length, 4);
+    assert.ok(adsb.every((c) => c.key === "test-key"));
+    Date.now = () => real() + 1_600_000;
+    calls.length = 0;
+    await worker.fetch(req("/flights"), env, ctx);
+    assert.ok(calls.filter((c) => c.url.includes("api.adsb.lol")).every((c) => c.key === undefined));
+    calls.length = 0;
+    await worker.fetch(req("/trains"), { ...env, ADSB_LOL_KEY: "test-key" }, ctx);
+    assert.ok(calls.length > 0 && calls.every((c) => c.key === undefined));
+  } finally { Date.now = real; }
 });
