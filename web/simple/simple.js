@@ -53,6 +53,23 @@ function values(key, yi) {
   }
   return (cache.vals[ck] = a);
 }
+// Share of Spain's population that lives in municipalities with a value for this indicator.
+// Under 90 % the figure is not "Spain's mean" (crime rate: only the larger municipalities), and the page says so.
+const _cover = {};
+function popCoverage(key) {
+  if (_cover[key] == null) {
+    let a = 0, all = 0; const c = COL[key], pc = COL.population;
+    for (const r of ROWS) { const pop = r[pc] || 0; all += pop; if (isNum(r[c])) a += pop; }
+    _cover[key] = all ? a / all : 1;
+  }
+  return _cover[key];
+}
+const isPartial = (key) => popCoverage(key) < 0.9;
+const nWithData = (key) => ROWS.reduce((n, r) => n + (isNum(r[COL[key]]) ? 1 : 0), 0);
+const natWord = (key) => (isPartial(key) ? `media de los ${NF0.format(nWithData(key))} municipios con dato` : 'media de España');
+const NatWord = (key) => { const s = natWord(key); return s[0].toUpperCase() + s.slice(1); };
+// Rates per 1,000 inhabitants carry no unit in fmt(): add it where a bare number would be unclear.
+const unitTail = (key) => { const i = IND_BY[key]; return i && i.format === 'dec1' && key !== 'household' && i.unit ? ' ' + i.unit : ''; };
 function sortedVals(key, yi) {
   const ck = key + '|' + yi;
   if (cache.sorted[ck]) return cache.sorted[ck];
@@ -493,7 +510,7 @@ function showHome(root, highlight) {
     for (let i = 0; i < N; i++) c[i] = bucketOf(vals[i], b);
     map.setColors(c, palette());
     const nat = natValue(state.key, state.yi);
-    map.setLabel(`Mapa de España por municipios: ${ind0().label}, ${yearOf(state.key, state.yi)}. Media de España: ${fmt(nat, state.key)}. Toca un municipio para abrir su ficha. También puedes usar el buscador.`);
+    map.setLabel(`Mapa de España por municipios: ${ind0().label}, ${yearOf(state.key, state.yi)}. ${NatWord(state.key)}: ${fmt(nat, state.key)}${unitTail(state.key)}. Toca un municipio para abrir su ficha. También puedes usar el buscador.`);
   }
 
   function renderFind() {
@@ -506,14 +523,14 @@ function showHome(root, highlight) {
       h = `<p class="eyebrow">Evolución</p><h1 class="find-h">En ${YEARS[state.yi]}, cada persona tenía de media ${fmt(n1, 'income')} netos al año.</h1><ul class="bullets"><li>En ${YEARS[0]} eran ${fmt(n0, 'income')}.</li><li>${state.yi === 0 ? 'Es el primer año de la serie.' : `Desde ${YEARS[0]} la renta ha subido un ${NF1.format((n1 / n0 - 1) * 100)} %.`}</li></ul>`;
     } else {
       const n = D.nation[state.key];
-      h = `<p class="eyebrow">Para situarte</p><h1 class="find-h"><span aria-hidden="true">${ind.icon}</span> ${esc(ind.label)}: media de España ${fmt(n.value, state.key)}</h1><ul class="bullets"><li>El municipio mediano: <b>${fmt(n.median, state.key)}</b></li><li>Dato de ${yearOf(state.key, state.yi)}. ${esc(sourceOf(state.key, state.yi))}</li></ul>`;
+      h = `<p class="eyebrow">Para situarte</p><h1 class="find-h"><span aria-hidden="true">${ind.icon}</span> ${esc(ind.label)}: ${natWord(state.key)}, ${fmt(n.value, state.key)}${unitTail(state.key)}</h1><ul class="bullets"><li>El municipio mediano: <b>${fmt(n.median, state.key)}</b></li><li>Dato de ${yearOf(state.key, state.yi)}. ${esc(sourceOf(state.key, state.yi))}</li></ul>`;
     }
     $('find').innerHTML = h;
   }
   function renderHead() {
     const ind = ind0(), nat = natValue(state.key, state.yi);
     $('map-ico').textContent = ind.icon; $('map-title').textContent = ind.label;
-    $('bench').textContent = `Media de España: ${fmt(nat, state.key)} · ${yearOf(state.key, state.yi)}`;
+    $('bench').textContent = `${NatWord(state.key)}: ${fmt(nat, state.key)}${unitTail(state.key)} · ${yearOf(state.key, state.yi)}`;
     $('btn-evo').hidden = state.key !== 'income';
     $('src').textContent = `Fuente: ${sourceOf(state.key, state.yi)}. Límites municipales: Eurostat GISCO, © EuroGeographics (uso no comercial).`;
   }
@@ -535,6 +552,12 @@ function showHome(root, highlight) {
     const lo = Math.min(...all), hi = Math.max(...all), span = (hi - lo) * 1.04 || 1;
     const pos = (v) => Math.max(0, Math.min(100, ((v - lo) / span) * 100));
     const noun = nounOf(ind0());
+    if (isPartial(k)) {
+      // A province's mean could rest on one or two municipalities: do not rank provinces on partial data.
+      const share = Math.round(popCoverage(k) * 10);
+      $('side').innerHTML = `<p class="nat"><span>Solo hay dato de <b>${NF0.format(nWithData(k))} municipios</b>, donde viven ${share} de cada 10 personas.</span></p><p class="src">Por eso aquí no se comparan provincias. Toca un municipio coloreado para ver su dato.</p>`;
+      return;
+    }
     const group = (title, list, cls) => `<div class="bars"><h3>${title}</h3>${list.map((p) => {
       const a = pos(0), b = pos(p.v);
       return `<div class="row"><span class="row-n">${esc(p.name)}</span><span class="track" style="--np:${pos(nat).toFixed(2)}%"><i class="${cls}" style="left:${Math.min(a, b).toFixed(2)}%;width:${Math.max(Math.abs(b - a), 0.6).toFixed(2)}%"></i></span><span class="row-v">${fmt(p.v, k)}</span></div>`;
@@ -638,7 +661,7 @@ function measureHTML(ind, row) {
     <div class="m-yr">${yr}</div>
     <p class="m-sent">${esc(sentenceFor(key, v))}</p>
     ${stripHTML(key, v)}
-    <ul class="m-bench"><li><span>Media de España</span><b>${fmt(nat.value, key)}</b></li><li><span>Media de la provincia de ${esc(p ? p.name : '')}</span><b>${fmt(pv, key)}</b></li></ul>
+    <ul class="m-bench"><li><span>${NatWord(key)}</span><b>${fmt(nat.value, key)}</b></li>${isPartial(key) ? '' : `<li><span>Media de la provincia de ${esc(p ? p.name : '')}</span><b>${fmt(pv, key)}</b></li>`}</ul>
   </article>`;
 }
 
