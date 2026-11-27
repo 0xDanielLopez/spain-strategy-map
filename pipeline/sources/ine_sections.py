@@ -23,6 +23,8 @@ import json
 import re
 import sys
 import zipfile
+import xml.etree.ElementTree as ET
+from pathlib import Path
 
 from ..core import fetch
 from ..core.paths import INTERIM, RAW
@@ -36,6 +38,17 @@ CACHE = INTERIM / "ine_sections"
 CACHE_VERSION = 1
 ZIP_URL = "https://www.ine.es/prodyser/cartografia/seccionado_{year}.zip"
 ZIP_PATH = "seccionado_{year}.zip"
+
+# INE experimental statistics "Viviendas turísticas" (tourist dwellings from web-scraped platform listings).
+# One national xlsx, sheet "Secciones" (census sections of the 2021 census), joined by CUSEC. Not a licence register.
+TOURIST = "tourist"
+TOURIST_EDITION = "MAY2026"  # latest edition at the time of writing: bump it when the INE publishes a newer one
+TOURIST_FILE = f"exp_viv_turistica_tabla5_{TOURIST_EDITION}.xlsx"
+TOURIST_URL = f"https://www.ine.es/experimental/viv_turistica/{TOURIST_FILE}"
+TOURIST_SHEET = "Secciones"
+TOURIST_FIELDS = ["tourist_dwellings", "tourist_places", "tourist_pct"]
+SECRET_MARK = "secreto estadístico"
+XLSX_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
 INCOME, DISTRIBUTION, DEMOGRAPHICS = "30824", "30829", "30832"
 NATIONALITY, BIRTH = "65032", "65031"
@@ -60,9 +73,9 @@ POVERTY_MARK = "por debajo 60% de la mediana"
 NATIONALITY_FIELDS = {"Total": "pop", "Extranjera": "foreign"}  # "Extranjera" = every foreign nationality
 BIRTH_FIELDS = {"Extranjero": "born_abroad"}
 # the field that says "this section has a value in this table", for the match rate
-PRIMARY = {INCOME: "income", DISTRIBUTION: "poverty60_pct", DEMOGRAPHICS: "age", NATIONALITY: "pop", BIRTH: "born_abroad"}
+PRIMARY = {INCOME: "income", DISTRIBUTION: "poverty60_pct", DEMOGRAPHICS: "age", NATIONALITY: "pop", BIRTH: "born_abroad", TOURIST: "tourist_dwellings"}
 ADRH_FIELDS = ["income", "adrh_pop", "age", "under18_pct", "over65_pct", "household_size", "single_households_pct", "poverty60_pct"]
-SECTION_FIELDS = ["pop", "foreign", "born_abroad"] + ADRH_FIELDS
+SECTION_FIELDS = ["pop", "foreign", "born_abroad"] + ADRH_FIELDS + TOURIST_FIELDS
 
 CODE_RE = re.compile(r"^(\d{10}|\d{7}|\d{5})\b")
 
@@ -89,6 +102,7 @@ class IneSections(Source):
 
     def fetch(self, force: bool = False) -> None:
         self.download(ZIP_URL.format(year=2026), ZIP_PATH.format(year=2026), force=force, expect_binary=True)
+        self.download(TOURIST_URL, TOURIST_FILE, force=force, expect_binary=True)
 
     def process(self) -> dict:
         recs = _dbf_rows(2026)
@@ -167,6 +181,102 @@ def load_sections(cumuns: set[str], year: int = 2026) -> list[dict]:
         for s in cached.get(c, []):
             out.append({**s, "rings": [[(x, y) for x, y in ring] for ring in s["rings"]]})
     return out
+
+
+# ---------------------------------------------------------------- tourist dwellings (xlsx, stdlib only)
+
+
+def _tourist_path():
+    p = RAW / "ine_sections" / TOURIST_FILE
+    if not p.exists():
+        if fetch.OFFLINE:
+            raise fetch.OfflineError(f"missing {p}")
+        fetch.download("ine_sections", TOURIST_URL, TOURIST_FILE, expect_binary=True)
+    return p
+
+
+def _xlsx_rows(path, sheet: str):
+    """Rows of one sheet as {column letter: text}; empty cells are left out. Streams the sheet."""
+    with zipfile.ZipFile(path) as zf:
+        rels = {r.get("Id"): r.get("Target") for r in ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))}
+        book = ET.fromstring(zf.read("xl/workbook.xml"))
+        rid = next((s.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id") for s in book.iter(XLSX_NS + "sheet") if s.get("name") == sheet), None)
+        if rid is None:
+            raise ValueError(f"{Path(path).name}: sheet {sheet!r} not found")
+        target = "xl/" + rels[rid].lstrip("/").removeprefix("xl/")
+        strings = [("".join(t.text or "" for t in si.iter(XLSX_NS + "t"))) for si in ET.fromstring(zf.read("xl/sharedStrings.xml"))]
+        with zf.open(target) as f:
+            for _, el in ET.iterparse(f):
+                if el.tag != XLSX_NS + "row":
+                    continue
+                row = {}
+                for c in el:
+                    v = c.find(XLSX_NS + "v")
+                    if v is None or v.text is None:
+                        continue
+                    row[re.match(r"[A-Z]+", c.get("r")).group()] = strings[int(v.text)] if c.get("t") == "s" else v.text
+                yield row
+                el.clear()
+
+
+def _num(text):
+    try:
+        return float(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_tourist(path, codes: set[str]) -> dict[str, dict]:
+    """{cumun: {"period": "2026M05", "sections": {cusec: {"tourist_dwellings", "tourist_places", "tourist_pct"}}}}.
+
+    Rules (the INE's own marks): "Área sin viviendas turísticas" is a real 0; a row under statistical secrecy has no percentage
+    (None), and when it also reports 0 dwellings that 0 is hidden, so everything is None; a section absent from the file is absent here.
+    """
+    expected = {"A": "CUSEC", "D": "vivienda turistica", "G": "plazas", "L": "nota4", "M": "Porcentaje vivienda turistica", "O": "PERIODO", "R": "MUN"}
+    out: dict[str, dict] = {}
+    header_ok = False
+    for r in _xlsx_rows(path, TOURIST_SHEET):
+        if not header_ok:
+            got = {k: r.get(k, "").strip() for k in expected}
+            if got != expected:
+                raise ValueError(f"{Path(path).name}: unexpected header {got!r}, expected {expected!r}")
+            header_ok = True
+            continue
+        cusec, muni = (r.get("A") or "").strip(), (r.get("R") or "").strip()
+        if len(cusec) != 10 or muni not in codes:
+            continue
+        dw, pl, pct = _num(r.get("D")), _num(r.get("G")), _num(r.get("M"))
+        if SECRET_MARK in (r.get("L") or "") or pct is None:
+            pct = None
+            if not dw:  # a hidden 0 is not a 0
+                dw = pl = None
+        elif dw is None or pl is None:
+            continue
+        o = out.setdefault(muni, {"period": "", "sections": {}})
+        o["sections"][cusec] = {"tourist_dwellings": dw, "tourist_places": pl, "tourist_pct": pct}
+        o["period"] = max(o["period"], (r.get("O") or "").strip())
+    if not header_ok:
+        raise ValueError(f"{Path(path).name}: empty sheet")
+    return out
+
+
+def _tourist_cache(cumuns: set[str]) -> dict[str, dict]:
+    have, todo = {}, set()
+    for c in sorted(cumuns):
+        try:
+            doc = json.loads((CACHE / f"tourist_{c}.json").read_text(encoding="utf-8"))
+            if doc.get("version") != CACHE_VERSION or doc.get("file") != TOURIST_FILE:
+                raise ValueError
+            have[c] = doc
+        except (OSError, ValueError):
+            todo.add(c)
+    if todo:
+        parsed = parse_tourist(_tourist_path(), todo)
+        for c in todo:
+            doc = {"version": CACHE_VERSION, "file": TOURIST_FILE, **parsed.get(c, {"period": None, "sections": {}})}
+            atomic_write_text(CACHE / f"tourist_{c}.json", json.dumps(doc, separators=(",", ":")))
+            have[c] = doc
+    return have
 
 
 # ---------------------------------------------------------------- tables
@@ -282,9 +392,10 @@ def load_section_stats(cumuns: set[str]) -> dict:
         if r and r.get("CUMUN") in cumuns:
             in_map[r["CUSEC"]] = r["CUMUN"]
     sections = {c: {f: None for f in SECTION_FIELDS} for c in sorted(in_map)}
+    tourist = _tourist_cache(cumuns)
     districts: dict[str, dict] = {}
     vintage: dict[str, str | None] = {}
-    outside = {t: 0 for t in TABLE_FILES}
+    outside = {t: 0 for t in (*TABLE_FILES, TOURIST)}
     for c in sorted(cumuns):
         for t, tab in docs[c]["tables"].items():
             if tab["period"] and (vintage.get(t) is None or tab["period"] > vintage[t]):
@@ -299,6 +410,15 @@ def load_section_stats(cumuns: set[str]) -> dict:
                 for cudis, vals in tab["districts"].items():
                     d = districts.setdefault(cudis, {f: None for f in ADRH_FIELDS})
                     d.update(vals)
+    for c in sorted(cumuns):
+        tab = tourist[c]
+        if tab["period"] and (vintage.get(TOURIST) is None or tab["period"] > vintage[TOURIST]):
+            vintage[TOURIST] = tab["period"]
+        for cusec, vals in tab["sections"].items():
+            if cusec in sections:
+                sections[cusec].update(vals)
+            else:
+                outside[TOURIST] += 1
     total_pop = sum(s["pop"] or 0 for s in sections.values())
     match = {}
     for t, f in PRIMARY.items():

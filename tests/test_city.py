@@ -26,8 +26,51 @@ def square(lon, lat, d=0.02):
 def stats(pop, income=20000, foreign=None):
     s = {f: None for f in ine_sections.SECTION_FIELDS}
     s.update(pop=pop, income=income, adrh_pop=pop, age=40.0, under18_pct=15.0, over65_pct=20.0, household_size=2.5,
-             single_households_pct=25.0, poverty60_pct=10.0, foreign=foreign if foreign is not None else pop // 10, born_abroad=pop // 5)
+             single_households_pct=25.0, poverty60_pct=10.0, foreign=foreign if foreign is not None else pop // 10, born_abroad=pop // 5,
+             tourist_dwellings=5, tourist_places=pop // 20, tourist_pct=2.0)
     return s
+
+
+class TouristLenses(unittest.TestCase):
+    def sec(self, pop, **kw):
+        s = {f: None for f in ine_sections.SECTION_FIELDS}
+        s.update(pop=pop, **kw)
+        return s
+
+    def test_terms_zero_versus_missing(self):
+        share, places = city._terms_tourist_share, city._terms_tourist_places
+        zero = self.sec(1000, tourist_dwellings=0, tourist_places=0, tourist_pct=0)
+        self.assertEqual(share(zero), (0, 1000))  # a real 0 stays a value
+        self.assertEqual(places(zero), (0, 1000))
+        none = self.sec(1000)
+        self.assertIsNone(share(none))
+        self.assertIsNone(places(none))
+        self.assertIsNone(share(self.sec(0, tourist_pct=5.0)))  # no residents: no weight
+        protected = self.sec(1000, tourist_dwellings=3, tourist_places=9, tourist_pct=None)
+        self.assertIsNone(share(protected))
+        self.assertEqual(places(protected), (900, 1000))
+
+    def test_hex_values(self):
+        sstats = [self.sec(1000, tourist_pct=10.0, tourist_places=50), self.sec(3000, tourist_pct=0, tourist_places=0)]
+        parts = [(0, 1.0), (1, 1.0)]
+        pop_of = [1000, 3000]
+        share = city.hex_value(parts, city._terms_tourist_share, sstats, pop_of, 4)
+        self.assertAlmostEqual(share, 0.025)  # (1000*0.10 + 3000*0) / 4000
+        places = city.hex_value(parts, city._terms_tourist_places, sstats, pop_of, 2)
+        self.assertAlmostEqual(places, 1.25)  # 50 places per 4000 people = 1.25 per 100
+        sstats[1] = self.sec(3000)  # no data for 75 % of the people: below COVERAGE_MIN
+        self.assertIsNone(city.hex_value(parts, city._terms_tourist_share, sstats, pop_of, 4))
+
+    def test_specs_and_text(self):
+        specs = {lid: meta for lid, _, meta in city.lens_specs({"tourist": "2026M05"})}
+        for lid in ("tourist_share", "tourist_places"):
+            d = specs[lid]["description"]
+            self.assertIn("mayo de 2026", d)
+            self.assertIn("Estadística experimental del INE", d)
+            self.assertIn("No es un registro oficial de licencias", d)
+            self.assertEqual(specs[lid]["source"], "ine_tourist")
+        self.assertEqual(city.period_es("2026M11"), "noviembre de 2026")
+        self.assertEqual(city.period_es(None), "?")
 
 
 class Names(unittest.TestCase):
@@ -218,6 +261,12 @@ class BuildScope(unittest.TestCase):
         lenses = json.loads((out / "t" / "lenses.json").read_text(encoding="utf-8"))["lenses"]
         income = next(l for l in lenses if l["id"] == "income")
         self.assertEqual({v for v in income["values"] if v is not None}, {20000})
+        ts = next(l for l in lenses if l["id"] == "tourist_share")
+        self.assertEqual({v for v in ts["values"] if v is not None}, {0.02})
+        tp = next(l for l in lenses if l["id"] == "tourist_places")
+        self.assertEqual({v for v in tp["values"] if v is not None}, {5.0})  # 50 places per 1000 people = 5 per 100
+        src = json.loads((out / "t" / "sources.json").read_text(encoding="utf-8"))
+        self.assertIn("ine_tourist", [x["id"] for x in src])
 
     def test_surroundings_are_sea_or_foreign_land_and_county_stays_in_owner(self):
         class SeaEast(FakeCover):

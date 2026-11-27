@@ -51,6 +51,9 @@ ATTRIBUTION = [
     {"data": "población, renta, edad, hogares, nacionalidad y lugar de nacimiento por sección",
      "source": "INE: Atlas de distribución de renta de los hogares y Censo anual de población",
      "license": "Elaboración propia con datos extraídos del sitio web del INE: www.ine.es. El INE no participa, patrocina ni apoya esta reutilización."},
+    {"data": "viviendas turísticas y plazas por sección (estadística experimental)",
+     "source": "INE: Viviendas turísticas, estadística experimental",
+     "license": "CC BY 4.0. Fuente: INE, www.ine.es"},
     {"data": "cobertura del suelo, construido, arbolado",
      "source": "ESA WorldCover 10 m 2021 v200",
      "license": "CC BY 4.0. © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium."},
@@ -227,6 +230,27 @@ def _census(field):
     return terms
 
 
+def _terms_tourist_share(s):  # INE share of dwellings, weighted by residents (the section's dwelling count is not in the file)
+    if s["tourist_pct"] is None or not s["pop"] or s["pop"] <= 0:
+        return None
+    return (s["pop"] * s["tourist_pct"] / 100, s["pop"])
+
+
+def _terms_tourist_places(s):  # places per 100 residents
+    if s["tourist_places"] is None or not s["pop"] or s["pop"] <= 0:
+        return None
+    return (s["tourist_places"] * 100, s["pop"])
+
+
+MONTHS_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+
+
+def period_es(period) -> str:
+    """'2026M05' -> 'mayo de 2026'."""
+    m = re.fullmatch(r"(\d{4})M(0[1-9]|1[0-2])", period or "")
+    return f"{MONTHS_ES[int(m.group(2)) - 1]} de {m.group(1)}" if m else "?"
+
+
 def lens_specs(vint: dict) -> list[tuple]:
     """(id, terms(section) -> (num, den) | None, meta) for the section lenses. Years come from the data."""
     adrh, cen = vint.get("30824") or "?", vint.get("65032") or "?"
@@ -238,6 +262,10 @@ def lens_specs(vint: dict) -> list[tuple]:
         return m
 
     inc = pick(INE_LENSES, "income")
+    tour = period_es(vint.get("tourist"))
+    tour_base = {**pick(NEW_LENSES, "tourist_homes"), "source": "ine_tourist"}
+    tour_text = (f"Estadística experimental del INE, obtenida de anuncios de plataformas de alquiler turístico (periodo: {tour}). "
+                 "No es un registro oficial de licencias.")
     return [
         ("income", _terms_income, meta(inc, "ine_adrh", 0, f"Renta neta media por persona de la sección censal (Atlas de distribución de renta de los hogares {adrh}, tabla 30824, INE), ponderada por habitantes.")),
         ("poverty", _adrh("poverty60_pct", 0.01), meta(pick(INE_LENSES, "poverty"), "ine_adrh", 4, f"Porcentaje de población con ingresos por unidad de consumo por debajo del 60 % de la mediana (Atlas de distribución de renta {vint.get('30829') or adrh}, tabla 30829, INE).", note="Las secciones con secreto estadístico quedan sin dato.")),
@@ -251,6 +279,16 @@ def lens_specs(vint: dict) -> list[tuple]:
             {**pick(INE_LENSES, "household"), "name": "Hogares unipersonales", "emoji": "🧍", "unit": "% de los hogares", "format": "pct"}, "ine_adrh", 4,
             f"Porcentaje de hogares con una sola persona (Atlas de distribución de renta {vint.get('30832') or adrh}, tabla 30832, INE).")),
         ("foreign", _census("foreign"), meta(pick(INE_LENSES, "foreign"), "ine_census", 4, f"Porcentaje de población sin nacionalidad española a 1 de enero de {cen} (Censo anual de población, tabla 65032, INE).")),
+        ("tourist_share", _terms_tourist_share, meta(
+            {**tour_base, "name": "Viviendas turísticas por sección"}, "ine_tourist", 4,
+            f"Porcentaje de viviendas de la sección que son viviendas turísticas. {tour_text}",
+            note="Las secciones sin viviendas turísticas valen 0; las que el INE protege por secreto estadístico o no incluye quedan sin dato. "
+                 "El INE usa las secciones del censo de 2021, y el valor de cada hexágono pondera las secciones por sus habitantes.")),
+        ("tourist_places", _terms_tourist_places, meta(
+            {**tour_base, "name": "Plazas turísticas por habitante", "unit": "plazas por 100 hab.", "format": "float", "emoji": "🛏️"}, "ine_tourist", 2,
+            f"Plazas en viviendas turísticas por cada 100 habitantes de la sección (plazas del INE entre población del Censo anual). {tour_text}",
+            note="Las secciones sin viviendas turísticas valen 0; las que el INE protege por secreto estadístico o no incluye quedan sin dato. "
+                 "Mezcla dos fechas: plazas del periodo indicado y población del Censo anual.")),
         ("born_abroad", _census("born_abroad"), meta(pick(NEW_LENSES, "born_abroad"), "ine_census", 4, f"Población nacida en el extranjero a 1 de enero de {vint.get('65031') or cen} (Censo anual de población, tabla 65031, INE).")),
     ]
 
@@ -607,6 +645,12 @@ def build_scope(scope: dict, out_dir=None, write_index: bool = True) -> dict:
          "description": "Población, nacionalidad y lugar de nacimiento por sección censal a 1 de enero (tablas 65032 y 65031). Solo agregados.",
          "used_for": ["Población repartida, densidad, extranjeros y nacidos fuera en los mapas de ciudad"], "vintage": f"Censo anual {census}",
          "files": [{"file": f"{t}.csv", "url": f"https://www.ine.es/jaxiT3/Tabla.htm?t={t}"} for t in ("65032", "65031")]},
+        {"id": "ine_tourist", "title": "Viviendas turísticas por sección censal (INE, estadística experimental)", "publisher": "Instituto Nacional de Estadística (INE)",
+         "homepage": "https://www.ine.es/experimental/viv_turistica/experimental_viv_turistica.htm",
+         "license": "CC BY 4.0. Fuente: INE, www.ine.es. Estadística experimental; no es un registro oficial de licencias.",
+         "description": "Viviendas turísticas, plazas y porcentaje sobre el total de viviendas por sección censal, obtenidos de anuncios de plataformas. Solo agregados por sección.",
+         "used_for": ["Lentes de viviendas turísticas y plazas turísticas de los mapas de ciudad"], "vintage": f"Estadística experimental, {period_es(vint.get('tourist'))}",
+         "files": [{"file": ine_sections.TOURIST_FILE, "url": ine_sections.TOURIST_URL}]},
         {**worldcover.WorldCover.info.to_dict(), "vintage": "ESA WorldCover v200 (2021)", "files": [],
          "description": (f"Clases de cobertura del suelo a 10 m. Los mapas de ciudad leen una vista general de ~{cover.pixel_m:.0f} m, solo las teselas TIFF que tocan el ámbito, "
                          "con peticiones HTTP por rangos." if fine else
