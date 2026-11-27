@@ -24,7 +24,23 @@ export function initPedia(data) {
   const h2 = (ic, fb, text) => `<h2>${icon(ic, fb, { size: 24 })}<span>${esc(text)}</span></h2>`;
 
   const pages = {
-    "About this map": () => `
+    "About this map": () => {
+      const sc = scope();
+      if (sc) {
+        const m = Math.round((sc.hex_km ?? data.world.grid.radius) * 2000);
+        return `
+      ${h2("pedia", "📖", "Acerca de este mapa")}
+      <p><b>${esc(sc.title || sc.name)}</b> dibujada como un juego de estrategia, a partir de datos públicos listados en <i>Fuentes</i>.</p>
+      <h4>Cómo está construido</h4>
+      <p>El mapa es una malla de hexágonos de unos ${m.toLocaleString("es-ES")} metros de vértice a vértice. Los ${lvl("state", { many: true })} son los grandes territorios
+      del mapa y las ${lvl("county", { many: true })} son su unidad más pequeña: cada hexágono pertenece a la que hay bajo su centro.</p>
+      <p>Los valores del mapa son <b>estimaciones</b>: el INE publica las cifras por sección censal, y aquí cada sección se reparte entre sus hexágonos según
+      el suelo construido que contiene. Un hexágono gris es un lugar donde no vive nadie (parque, campo, industria, agua). La tierra que queda fuera del municipio se dibuja apagada.</p>
+      <h4>Controles</h4>
+      <p>Arrastra o usa las flechas / WASD para desplazarte · rueda, +/– o doble clic para acercar · / o ⌘K para buscar · L para cambiar de lente · ? para todos los atajos · Esc para cerrar.</p>
+      <p>La barra de direcciones guarda siempre un enlace a lo que estás viendo (lente, selección y vista); usa <i>Compartir</i> para copiarlo o para descargar una imagen.</p>`;
+      }
+      return `
       ${h2("pedia", "📖", "Acerca de este mapa")}
       <p>Esto es la España real dibujada como un juego de estrategia. Nada es inventado: cada casilla, ciudad y
       número sale de datos públicos, listados en <i>Fuentes</i>.</p>
@@ -38,7 +54,8 @@ export function initPedia(data) {
       <p>Arrastra o usa las flechas / WASD para desplazarte · rueda, +/– o doble clic para acercar · haz clic en una ciudad o una comunidad para abrirla ·
       / o ⌘K para buscar · L para cambiar de lente · R para mostrar u ocultar recursos · ? para todos los atajos · Esc para cerrar.</p>
       <p>La barra de direcciones guarda siempre un enlace a lo que estás viendo (lente, selección y vista); usa <i>Compartir</i> para copiarlo
-      o para descargar una imagen.</p>`,
+      o para descargar una imagen.</p>`;
+    },
     Yields: () => `
       ${h2("y-production", "⚙️", "Rendimientos")}
       <p>Los rendimientos de los juegos de estrategia, trasladados a medidas reales. Los rendimientos basados en empleo cuentan los <i>residentes</i> ocupados en un sector
@@ -47,7 +64,11 @@ export function initPedia(data) {
       <h4>Servicios y vivienda</h4>
       <p>Desempleo = parados ÷ población activa. Alquiler ÷ renta = alquiler mensual mediano × 12 ÷ renta mediana del hogar:
       una señal aproximada de asequibilidad, no una tasa de esfuerzo por hogar.</p>`,
-    States: () => `
+    States: () => scope() ? `
+      ${h2("terrain", "🗺️", lvl("state", { many: true, cap: true }))}
+      <p>Haz clic en un hexágono para abrir su ${lvl("state")}. Las cifras son las de ese territorio dentro de ${esc(scope().name || scope().title)}, estimadas a partir de sus
+      ${lvl("county", { many: true })} (${esc(data.nation.vintage || "")}). Los <b>puestos</b> comparan los ${lvl("state", { many: true })} entre sí; el 1 es el mayor.</p>
+      <p class="muted">Donde falta una cifra se muestra «sin dato», nunca un 0.</p>` : `
       ${h2("terrain", "🗺️", "Comunidades")}
       <p>Haz clic en cualquier hexágono de tierra sin ciudad para abrir su comunidad autónoma. Las cifras de una comunidad son los totales y medianas de la comunidad
       con las mismas tablas que las ciudades (${esc(data.nation.vintage)}${data.nation.gdp_vintage ? `; PIB de ${esc(data.nation.gdp_vintage)}` : ""}),
@@ -57,6 +78,19 @@ export function initPedia(data) {
       ${data.states ? "" : `<p class="muted">Esta versión de los datos no tiene states.json, así que los paneles de comunidad solo muestran nombres y ciudades.</p>`}`,
     Terrain: () => {
       const t = data.w?.tables || resolveTables(data.world.tables);
+      if (scope()) {
+        const cov = Array.isArray(data.world.cover);
+        const r = (x) => `<tr><td class="nm">${x.color ? `<span class="swatch" style="background:${esc(x.color)}"></span>` : ""}<b>${esc(x.name)}</b></td><td>${esc(x.rule || "")}</td></tr>`;
+        return `
+      ${h2("terrain", "🗺️", "Terreno")}
+      <p>El color de cada hexágono es el tipo de suelo que predomina en él, según la cobertura del suelo ESA WorldCover 2021 (10 m). El suelo construido es lo que reparte
+      los valores estimados: donde no hay edificios, no vive nadie.</p>
+      ${cov ? `<table>${t.cover.filter((x) => x.id > 0).map(r).join("")}</table>` : `<p class="muted">Esta versión de los datos no tiene capa de cobertura del suelo.</p>`}
+      <h4>${icon("r-hydro", "💧", { size: 16 })} Agua</h4>
+      <table>${t.water.filter((x) => x.id > 0).map(r).join("")}</table>
+      <h4>Fuera del municipio</h4>
+      <p class="muted">La tierra de otros municipios se dibuja apagada, como contexto: no tiene cifras en este mapa.</p>`;
+      }
       const hasCover = Array.isArray(data.world.cover);
       const row = (x) => `<tr><td class="nm">${x.color ? `<span class="swatch" style="background:${esc(x.color)}"></span>` : ""}${
         COVER_ICON[x.key] ? icon(COVER_ICON[x.key], "", { size: 15 }) + " " : ""}<b>${esc(x.name)}</b></td><td>${esc(x.rule || "")}</td></tr>`;
@@ -82,10 +116,13 @@ export function initPedia(data) {
     },
     Lenses: () => `
       ${h2("layers", "▤", "Lentes")}
-      <p>Las lentes recolorean el mapa según una sola medida, construida con datos municipales (${esc(data.lenses.vintage)}). Cada hexágono se muestrea
+      ${scope()
+        ? `<p>Las lentes recolorean el mapa según una sola medida por ${lvl("county")} (${esc(data.lenses.vintage || "")}). El valor de cada sección es una estimación: se reparte entre sus
+      hexágonos según el suelo construido, y la renta se promedia entre las secciones de un hexágono ponderada por población.</p>`
+        : `<p>Las lentes recolorean el mapa según una sola medida, construida con datos municipales (${esc(data.lenses.vintage)}). Cada hexágono se muestrea
       en 7 puntos. Un municipio que cubre algunos de ellos se supone que cubre esa proporción del hexágono. Los municipios pequeños y densos que ninguna
       muestra alcanza se añaden al hexágono que contiene su centro. La renta y el valor de la vivienda
-      se promedian entre los municipios de un hexágono, ponderados por población.</p>
+      se promedian entre los municipios de un hexágono, ponderados por población.</p>`}
       <p>La leyenda muestra cuántos hexágonos caen en cada valor. Pasa el ratón o arrastra sobre ella para mostrar solo ese rango en el mapa.</p>
       ${(data.lenses.groups || [{ id: null, name: "" }]).map((g) => {
         const ls = data.lenses.lenses.filter((l) => !g.id || l.group === g.id);
@@ -126,6 +163,8 @@ export function initPedia(data) {
         <table>${(s.files || []).map((f) => `<tr><td><code>${esc(f.url)}</code></td><td class="muted" style="white-space:nowrap">${esc((f.retrieved || "").slice(0, 10))}<br>${((f.bytes || 0) / 1e6).toFixed(1).replace(".", ",")} MB</td></tr>`).join("")}</table>`).join("")}`,
   };
 
+  // A city map has no national relief, rivers, resources or wonders: those pages (and the rest of the national text) stay out of its Almanac.
+  if (scope() && !data.resources?.types?.length) delete pages.Resources;
   const show = (name) => {
     if (!pages[name]) name = "About this map";
     body.innerHTML = pages[name]();

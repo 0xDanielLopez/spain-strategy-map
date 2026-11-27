@@ -1,5 +1,5 @@
 // Share popover: copy a link to the current view, or download a 1600×900 PNG of it with a caption strip.
-import { scopeCredit } from "./scope.js";
+import { scopeCredit, scopeTitle, lvl } from "./scope.js";
 import { drawIcon, hasIcon } from "../icons.js";
 import { icon } from "../ui/icon.js";
 
@@ -116,7 +116,13 @@ export function composeImage(info, { height = IMG_H } = {}) {
   ctx.fillStyle = "#ecd08e";
   ctx.font = `bold 36px ${SERIF}`;
   spaced(ctx, 5);
-  ctx.fillText("ESPAÑA", 112, cy + 2);
+  const stitle = scopeTitle();
+  if (stitle) {
+    // Long city names shrink to fit the 500 px left of the lens block.
+    let px = 36;
+    do { ctx.font = `bold ${px}px ${SERIF}`; px -= 2; } while (px > 18 && ctx.measureText(stitle.toUpperCase()).width + stitle.length * 5 > 500);
+  }
+  ctx.fillText((stitle || "ESPAÑA").toUpperCase(), 112, cy + 2);
   spaced(ctx, 0);
   ctx.fillStyle = "#b9ab88";
   ctx.font = `italic 17px ${SERIF}`;
@@ -151,7 +157,7 @@ export function composeImage(info, { height = IMG_H } = {}) {
   } else {
     ctx.font = `15px ${SANS}`;
     ctx.fillStyle = "#b9ab88";
-    ctx.fillText("Cobertura del suelo, relieve, ríos y recursos", mx + 50, cy + 16);
+    ctx.fillText(scopeTitle() ? "Estimaciones por hexágono" : "Cobertura del suelo, relieve, ríos y recursos", mx + 50, cy + 16);
   }
 
   // Selection, credits, site
@@ -162,7 +168,7 @@ export function composeImage(info, { height = IMG_H } = {}) {
     ctx.font = `13px ${SANS}`;
     ctx.fillStyle = "#b9ab88";
     spaced(ctx, 2);
-    ctx.fillText(sel.kind === "state" ? "COMUNIDAD" : "CIUDAD", rx, cy - 30);
+    ctx.fillText(sel.kind === "state" ? lvl("state").toUpperCase() : "CIUDAD", rx, cy - 30);
     spaced(ctx, 0);
     ctx.font = `bold 24px ${SERIF}`;
     ctx.fillStyle = "#f3e6c4";

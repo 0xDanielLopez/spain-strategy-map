@@ -112,9 +112,11 @@ export function drawStatic(ctx, vp, w, opts) {
     tMark = t;
   };
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = OCEAN_BG;
+  const scoped = !!w.raw.scope; // city map: the grid is a window on a larger land area, not an island in the sea
+  ctx.fillStyle = scoped ? outsideLandCss(w) : OCEAN_BG;
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   worldT();
+  if (scoped) paintBeyondGrid(ctx, vp, w, r0, r1, c0, c1);
 
   // Visible cells, row by row.
   const cells = [];
@@ -207,7 +209,7 @@ export function drawStatic(ctx, vp, w, opts) {
 
   // 7. Sea mist around the edges of the known world.
   upTo(Z.FOG);
-  if (opts.edgeFog !== false) drawEdgeFog(ctx, vp, W, H, 26 * R); // 260 km at the national 10 km hex; scales down for city maps
+  if (opts.edgeFog !== false && !scoped) drawEdgeFog(ctx, vp, W, H, 26 * R); // 260 km at the national 10 km hex; scales down for city maps
   lap("fog");
 
   // 8. Screen-space bits: resources, then the big state names.
@@ -294,6 +296,72 @@ export function warmSprites(ctx, vp, w, opts = {}) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
+// City maps: edges between cells of different census sections inside one district (district borders are
+// stateLines). Flat [x0,y0,x1,y1,...] in km, cached on w.
+function sectionLines(w) {
+  if (!w._sectionLines) {
+    const { grid } = w;
+    const { owner, county } = w.raw;
+    const out = [];
+    if (county) {
+      for (let i = 0; i < grid.size; i++) {
+        if (owner[i] < 0 || county[i] < 0) continue;
+        const cx = grid.cx(i), cy = grid.cy(i);
+        for (let d = 0; d < 6; d++) {
+          const j = grid.neighbour(i, d);
+          if (j <= i || owner[j] !== owner[i] || county[j] < 0 || county[j] === county[i]) continue;
+          const [ax, ay] = grid.corners[d], [bx, by] = grid.corners[(d + 1) % 6];
+          out.push(cx + ax, cy + ay, cx + bx, cy + by);
+        }
+      }
+    }
+    w._sectionLines = out;
+  }
+  return w._sectionLines;
+}
+
+// City maps: colour of the land outside the municipality (what owner -2 cells show), cached on w.
+function outsideLandCss(w) {
+  if (!w._outsideCss) {
+    let r = 0, g = 0, b = 0, n = 0;
+    const { owner } = w.raw;
+    for (let i = 0; i < owner.length; i += 7) {
+      if (owner[i] !== -2 || w.water[i]) continue;
+      const c = w.terrainColors[i];
+      r += c[0]; g += c[1]; b += c[2]; n++;
+    }
+    w._outsideCss = n ? `rgb(${Math.round(r / n)},${Math.round(g / n)},${Math.round(b / n)})` : "rgb(58,66,76)";
+  }
+  return w._outsideCss;
+}
+
+// City maps: beyond the grid, continue every border cell's colour outwards, so sea cells at the rim read as open
+// sea and land cells as land (the canvas is already filled with the muted outside-land colour for the rest).
+function paintBeyondGrid(ctx, vp, w, r0, r1, c0, c1) {
+  const { grid } = w;
+  const W = w.raw.width, H = w.raw.height, big = 1e4;
+  const { cols, rows } = grid;
+  const left = vp.x0 < 0, right = vp.x1 > W, top = vp.y0 < 0, bottom = vp.y1 > H;
+  if (!(left || right || top || bottom)) return;
+  const land = outsideLandCss(w);
+  // Only water continues as water; land beyond the grid is one flat muted colour (no stripes of cover colours).
+  const fill = (i, x, y, ww, hh) => { ctx.fillStyle = w.water[i] ? w.colors[i] : land; ctx.fillRect(x, y, ww, hh); };
+  for (let r = r0; r <= r1; r++) {
+    const y = grid.cy(r * cols) - grid.H / 2;
+    if (left) { const i = r * cols; fill(i, -big, y, big + grid.cx(i), grid.H + 0.5); }
+    if (right) { const i = r * cols + cols - 1; fill(i, grid.cx(i), y, big, grid.H + 0.5); }
+  }
+  for (let c = c0; c <= c1; c++) {
+    if (top) { const i = c; fill(i, grid.cx(i) - grid.W / 2, -big, grid.W + 0.5, big + grid.cy(i)); }
+    if (bottom) { const i = (rows - 1) * cols + c; fill(i, grid.cx(i) - grid.W / 2, grid.cy(i), grid.W + 0.5, big); }
+  }
+  const last = (rows - 1) * cols + cols - 1;
+  if (left && top) fill(0, -big, -big, big + grid.cx(0), big + grid.cy(0));
+  if (right && top) fill(cols - 1, grid.cx(cols - 1), -big, big, big + grid.cy(cols - 1));
+  if (left && bottom) fill((rows - 1) * cols, -big, grid.cy((rows - 1) * cols), big + grid.cx((rows - 1) * cols), big);
+  if (right && bottom) fill(last, grid.cx(last), grid.cy(last), big, big);
+}
+
 function drawEdgeFog(ctx, vp, W, H, band = 260) {
   const v = vp;
   if (v.x0 > band && v.y0 > band && v.x1 < W - band && v.y1 < H - band) return;
@@ -363,6 +431,11 @@ function drawBorders(ctx, w, s, Rpx, lens) {
   // The smoothed shore (render/art/water.js drawShore) draws the waterline; a stroke along the hex edges here would
   // bring the hex staircase back, so it is only drawn when hexes are too small for the shore pass's lobes.
   if (Rpx < 4) strokeSegs(ctx, w.coastLines, "rgba(240,226,180,.5)", 1.1 / s);
+  // City maps: thin, faint borders between census sections once a hex is wide enough to read them.
+  if (w.raw.scope && Rpx * Math.sqrt(3) >= 14) {
+    const a = 0.3 + 0.15 * smoothstep(14, 30, Rpx * Math.sqrt(3));
+    strokeSegs(ctx, sectionLines(w), `rgba(255,240,200,${a.toFixed(3)})`, Math.max(1, Math.min(1.6, Rpx * 0.05)) / s);
+  }
   strokeSegs(ctx, w.stateLines, "rgba(15,10,5,.55)", Math.max(0.8, Math.min(2, Rpx * 0.08)) / s);
   strokeSegs(ctx, w.nationLines, "rgba(255,232,160,.85)", Math.max(1.2, Math.min(3, Rpx * 0.12)) / s);
 }
@@ -586,6 +659,8 @@ function drawBandEdge(ctx, w, r0, r1, c0, c1, s) {
 
 export function stateLabelAlpha(lbl, Rpx, s) {
   const px = lbl.size * s;
+  // City maps keep district names up to much bigger hexes: the districts are what the eye reads there.
+  if (lbl.spacing != null) return smoothstep(6, 9, px) * (1 - smoothstep(40, 60, Rpx));
   return smoothstep(8, 13, px) * (1 - smoothstep(13, 22, Rpx));
 }
 
@@ -613,7 +688,9 @@ function drawStateLabels(ctx, vp, w, Rpx) {
     let a = stateLabelAlpha(lbl, Rpx, s);
     if (a < 0.02) continue;
     let px = Math.min(lbl.size * s, 110);
-    const abbr = lbl.text.length <= 3;
+    const scopeLbl = lbl.spacing != null;
+    if (scopeLbl) px = Math.max(11, Math.min(px, 20)); // district labels: one size, kept readable at any zoom
+    const abbr = !scopeLbl && lbl.text.length <= 3;
     if (abbr) {
       // Small states (DE, RI, CT, NJ, MD, DC...): a modest postal code that must fit the state on screen.
       const extent = Math.sqrt(cells[lbl.state] || 1) * Rpx * 1.6;
@@ -624,20 +701,21 @@ function drawStateLabels(ctx, vp, w, Rpx) {
     const sx = (lbl.x - vp.x0) * s, sy = (lbl.y - vp.y0) * s;
     if (sx < -600 || sy < -200 || sx > vp.cssW + 600 || sy > vp.cssH + 200) continue;
     // Axis-aligned box of the rotated text (approximate width from the em estimate).
-    const tw = px * (lbl.text.length * 0.78 + LABEL_SPACING * (lbl.text.length - 1)), th = px * 0.8;
+    const sp = scopeLbl ? lbl.spacing : LABEL_SPACING;
+    const tw = px * (lbl.text.length * 0.78 + sp * (lbl.text.length - 1)), th = px * 0.8;
     const c = Math.abs(Math.cos(lbl.angle)), sn = Math.abs(Math.sin(lbl.angle));
     const bw = (tw * c + th * sn) / 2, bh = (tw * sn + th * c) / 2;
     const box = [sx - bw, sy - bh, sx + bw, sy + bh];
-    if (placed.some((p) => box[0] < p[2] && p[0] < box[2] && box[1] < p[3] && p[1] < box[3])) continue;
+    if (!scopeLbl && placed.some((p) => box[0] < p[2] && p[0] < box[2] && box[1] < p[3] && p[1] < box[3])) continue;
     placed.push(box);
     ctx.save();
     ctx.translate(sx, sy);
     ctx.rotate(lbl.angle);
     ctx.font = `${abbr ? "bold " : ""}${px.toFixed(1)}px ${LABEL_FONT}`;
-    ctx.lineWidth = Math.max(abbr ? 2.5 : 1.5, px * 0.07);
-    ctx.strokeStyle = `rgba(25,18,10,${(abbr ? 0.6 : 0.45) * a})`;
-    ctx.fillStyle = `rgba(255,246,222,${(abbr ? 0.8 : 0.72) * a})`;
-    const gap = px * (abbr ? 0.12 : LABEL_SPACING);
+    ctx.lineWidth = Math.max(abbr ? 2.5 : 1.5, px * (scopeLbl ? 0.12 : 0.07));
+    ctx.strokeStyle = `rgba(25,18,10,${(abbr ? 0.6 : scopeLbl ? 0.92 : 0.45) * a})`;
+    ctx.fillStyle = `rgba(255,246,222,${(abbr ? 0.8 : scopeLbl ? 1 : 0.72) * a})`;
+    const gap = px * (abbr ? 0.12 : sp);
     if (spaced) {
       ctx.letterSpacing = `${gap.toFixed(1)}px`;
       // letterSpacing also adds space after the last glyph; shift by half of it to stay centred.

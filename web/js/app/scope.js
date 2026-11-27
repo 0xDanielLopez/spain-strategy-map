@@ -1,5 +1,6 @@
 // City scope support: ?scope=<id> opens the same map for one city (data/city/<id>/*.json) instead of Spain.
 // Everything here is a no-op in national mode (no ?scope), so the national page behaves exactly as before.
+import { parseHash } from "./urlstate.js";
 const ID = /^[a-z0-9-]+$/;
 
 const requested = (() => {
@@ -51,6 +52,54 @@ export function scopeCredit() {
   return current ? "Datos: INE, ESA WorldCover" : null;
 }
 
+/** Title of the open scope ("Sevilla"), or null on the national map. */
+export const scopeTitle = () => (current ? current.title || current.name || "Ciudad" : null);
+
+/**
+ * "Otra ciudad" switcher: a <select> of the scopes in data/city/index.json, biggest first. Choosing one opens
+ * ?scope=<id>, keeping the lens in the hash when the target scope has a lens with the same id.
+ */
+function addCitySwitcher(after) {
+  if (document.getElementById("scope-switch")) return;
+  fetch("data/city/index.json")
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      const list = (Array.isArray(j?.scopes) ? j.scopes : []).filter((s) => s && ID.test(String(s.id)));
+      if (list.length < 2 || document.getElementById("scope-switch")) return;
+      list.sort((a, b) => (b.population || 0) - (a.population || 0));
+      const sel = document.createElement("select");
+      sel.id = "scope-switch";
+      sel.setAttribute("aria-label", "Otra ciudad");
+      sel.title = "Abrir el mapa de otra ciudad";
+      const head = document.createElement("option");
+      head.value = "";
+      head.textContent = "Otra ciudad";
+      sel.appendChild(head);
+      for (const s of list) {
+        if (s.id === requested) continue;
+        const o = document.createElement("option");
+        o.value = s.id;
+        o.textContent = (s.title || s.name || s.id) + (s.kind === "urban_area" ? " · área urbana" : "");
+        sel.appendChild(o);
+      }
+      sel.onchange = async () => {
+        const id = sel.value;
+        if (!ID.test(id)) return;
+        let hash = "";
+        try {
+          const lens = parseHash(location.hash).lens;
+          if (lens) {
+            const l = await fetch(`data/city/${id}/lenses.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+            if (l?.lenses?.some((x) => x.id === lens)) hash = `#lens=${encodeURIComponent(lens)}`;
+          }
+        } catch { /* no lens carried over */ }
+        location.href = `${location.pathname}?scope=${id}${hash}`;
+      };
+      after.insertAdjacentElement("afterend", sel);
+    })
+    .catch(() => {});
+}
+
 export function applyScopeChrome() {
   if (!current) return;
   const title = current.title || current.name || "Ciudad";
@@ -68,6 +117,7 @@ export function applyScopeChrome() {
     a.title = "Volver al mapa de España";
     a.style.cssText = "margin-left:10px;padding:2px 8px;border:1px solid var(--gold,#c9a45c);border-radius:4px;color:var(--gold-bright,#e8c777);font-size:12px;letter-spacing:.06em;text-decoration:none;white-space:nowrap;flex:none";
     brand.insertAdjacentElement("afterend", a);
+    addCitySwitcher(a);
   }
   // A city map uses other sources than the national one: the footer must credit those (INE asks for this wording).
   const credit = document.getElementById("attribution");
@@ -84,7 +134,7 @@ export function applyScopeChrome() {
     const n = document.createElement("div");
     n.id = "scope-note";
     n.textContent = current.note;
-    n.style.cssText = "position:fixed;left:12px;top:calc(var(--topbar-h,40px) + 8px);z-index:9;max-width:min(92vw,340px);padding:4px 8px;border-radius:6px;font-size:11px;line-height:1.35;pointer-events:none;background:rgba(255,255,255,0.85);color:#3a3f47";
+    n.style.cssText = "position:fixed;left:12px;top:calc(var(--topbar-h,40px) + 8px);z-index:9;max-width:min(calc(100vw - 24px),340px);box-sizing:border-box;padding:4px 8px;border-radius:6px;font-size:11px;line-height:1.35;pointer-events:none;background:rgba(255,255,255,0.85);color:#3a3f47";
     document.body.appendChild(n);
   }
 }
@@ -119,6 +169,6 @@ export function scopeLinksHtml(scopes, cityId) {
   if (!mine.length) return "";
   const label = (s) => (s.kind === "urban_area" ? "Área urbana" : "Municipio");
   return `<div class="chips scope-links">${mine
-    .map((s) => `<a class="chip" href="?scope=${esc(s.id)}" title="${esc(s.title || s.name || "")}">Mapa de la ciudad · ${label(s)}</a>`)
+    .map((s) => `<a class="chip" href="?scope=${esc(s.id)}" title="${esc(s.title || s.name || "")}">Mapa de la ciudad${mine.length > 1 ? " · " + label(s) : ""}</a>`)
     .join("")}</div>`;
 }

@@ -253,6 +253,7 @@ function computeStateLabels(w) {
     if (best[o] < 0 || score(i) > score(best[o])) best[o] = i;
   }
 
+  if (w.raw.scope) return computeScopeLabels(w, dist, cxs, cys, cnt);
   const labels = [];
   const seen = new Uint8Array(n);
   for (let s = 0; s < states.length; s++) {
@@ -311,18 +312,81 @@ function computeStateLabels(w) {
   return labels;
 }
 
+// City maps (world.scope): every district label has the SAME size (SCOPE_LABEL_EM hex widths), is horizontal and
+// sits near the district's visual centre (deepest cells). The full name is used when it fits the district at that
+// size, else the short name (states[].abbr), else the short name overflows anyway. Labels never overlap in map
+// space (a smaller district's label is moved up / down, and only hidden when nothing is free).
+const SCOPE_SPACING = 0.1;
+const SCOPE_LABEL_EM = 1.25; // label font size in hex widths (about 13 px at the home view)
+function computeScopeLabels(w, dist, cxs, cys, cnt) {
+  const { grid } = w;
+  const { owner, states } = w.raw;
+  const n = grid.size;
+  const S = SCOPE_LABEL_EM * grid.W;
+  const cityCells = [...w.cityByCell.keys()].map((c) => [grid.cx(c), grid.cy(c)]);
+  const near = (x, y, hw, hh) => cityCells.some(([px, py]) => Math.abs(px - x) < hw + grid.W * 1.2 && py > y - hh - grid.H * 4 && py < y + hh + grid.H * 1.5);
+  const maxDist = new Int16Array(states.length);
+  const cellsOf = states.map(() => []);
+  for (let i = 0; i < n; i++) {
+    const o = owner[i];
+    if (o < 0) continue;
+    cellsOf[o].push(i);
+    if (dist[i] > maxDist[o]) maxDist[o] = dist[i];
+  }
+  const overlap = (a, b) => Math.abs(a.x - b.x) < (a.hw + b.hw) && Math.abs(a.y - b.y) < (a.hh + b.hh);
+  const order = states.map((_, s) => s).filter((s) => cellsOf[s].length).sort((a, b) => cellsOf[b].length - cellsOf[a].length);
+  const placed = [];
+  const labels = [];
+  for (const s of order) {
+    const cells = cellsOf[s];
+    const cx = cxs[s] / cnt[s], cy = cys[s] / cnt[s];
+    const dc = (i) => Math.hypot(grid.cx(i) - cx, grid.cy(i) - cy);
+    // Anchors: the deepest cells (visual centre first), spread out.
+    const ranked = cells.filter((i) => dist[i] >= Math.max(0, maxDist[s] * 0.4))
+      .sort((a, b) => dist[b] - dist[a] || dc(a) - dc(b));
+    const anchors = [];
+    for (const i of ranked) {
+      if (anchors.length >= 16) break;
+      if (anchors.every((a) => Math.hypot(grid.cx(a) - grid.cx(i), grid.cy(a) - grid.cy(i)) > grid.W * 2.5)) anchors.push(i);
+    }
+    const name = states[s].name.toUpperCase();
+    const abbr = states[s].abbr ? states[s].abbr.toUpperCase() : "";
+    const texts = abbr && abbr !== name ? [name, abbr] : [name];
+    const box = (text, x, y) => ({ x, y, hw: (labelEm(text, SCOPE_SPACING) * S) / 2 + 0.15 * S, hh: 0.5 * S });
+    const mk = (text, x, y, tier, k) => ({ text, x, y, tier, k, hit: near(x, y, (labelEm(text, SCOPE_SPACING) * S) / 2, S / 2), box: box(text, x, y) });
+    const cands = [];
+    texts.forEach((text, ti) => anchors.forEach((a, ai) => {
+      const f = fitAlong(w, s, a, 0, text, S, SCOPE_SPACING);
+      if (f.size >= 0.98 * S) cands.push(mk(text, f.x, f.y, ti, ai));
+    }));
+    // Overflow fallback: the short label (or the name when there is none) at the anchors, nudged up / down.
+    const last = texts[texts.length - 1];
+    for (const dy of [0, -0.9, 0.9, -1.8, 1.8, -2.7, 2.7]) {
+      anchors.forEach((a, ai) => cands.push(mk(last, grid.cx(a), grid.cy(a) + dy * S, 5 + Math.abs(dy), ai)));
+    }
+    const fitted = cands.filter((c) => c.tier < 5);
+    fitted.sort((p, q) => (p.hit - q.hit) || (p.tier - q.tier) || (p.k - q.k));
+    const pool = [...fitted.filter((c) => !c.hit), ...fitted.filter((c) => c.hit), ...cands.filter((c) => c.tier >= 5).sort((p, q) => (p.tier - q.tier) || (p.hit - q.hit) || (p.k - q.k))];
+    const pick = pool.find((c) => !placed.some((p) => overlap(c.box, p)));
+    if (!pick) continue; // nothing free: this (smaller) district goes without a label
+    placed.push(pick.box);
+    labels.push({ state: s, text: pick.text, x: pick.x, y: pick.y, angle: 0, size: S, depth: maxDist[s], spacing: SCOPE_SPACING });
+  }
+  return labels;
+}
+
 // State-name letter spacing (fraction of the font size); map.js draws with the same values.
 export const LABEL_FONT = '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif';
 export const LABEL_SPACING = 0.32;
 let measureCtx = null;
 /** Width of `text` in em at LABEL_FONT with LABEL_SPACING between letters (falls back to an estimate). */
-function labelEm(text) {
+function labelEm(text, spacing = LABEL_SPACING) {
   try {
     measureCtx ??= document.createElement("canvas").getContext("2d");
     measureCtx.font = `100px ${LABEL_FONT}`;
     let wsum = 0;
     for (const ch of text) wsum += measureCtx.measureText(ch).width;
-    return wsum / 100 + LABEL_SPACING * (text.length - 1);
+    return wsum / 100 + spacing * (text.length - 1);
   } catch {
     return text.length * 1.02;
   }
@@ -331,10 +395,10 @@ function labelEm(text) {
 // Fit `text` on a baseline through hex `a` at angle `ang`, staying inside state `s`: walk the baseline (and
 // two parallel lines at ± half the cap height) both ways until the state ends, re-centre on the free run and
 // size the text to ~92% of it. Iterates because the cap height depends on the size.
-function fitAlong(w, s, a, ang, text, cap) {
+function fitAlong(w, s, a, ang, text, cap, spacing = LABEL_SPACING) {
   const { grid } = w, owner = w.raw.owner;
   const ux = Math.cos(ang), uy = Math.sin(ang), nx = -uy, ny = ux;
-  const em = labelEm(text);
+  const em = labelEm(text, spacing);
   const step = grid.H * 0.25;
   const inside = (x, y) => {
     const i = grid.cellAt(x, y);

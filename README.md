@@ -87,14 +87,19 @@ uv run python -m pipeline serve     # abre http://127.0.0.1:8765
 
 ## Mapas de ciudad
 
-Además del mapa de España hay una versión por ciudad: el mismo mapa de hexágonos, pero con hexágonos de 0,3 km (Madrid) o de 1,2 km (el área urbana de Madrid) y con distritos o municipios en lugar de comunidades. Se abre con `?scope=madrid` o `?scope=madrid-auf`.
+Además del mapa de España hay una versión por ciudad: el mismo mapa de hexágonos, pero con hexágonos de 150 a 300 m y con los distritos de la ciudad en lugar de las comunidades. Se abre desde el panel de cada ciudad o con `?scope=sevilla`, `?scope=madrid` o `?scope=madrid-auf` (el área urbana de Madrid, con hexágonos de 1,2 km y municipios).
+
+Sevilla es la ciudad donde pruebo primero lo que es propio de una ciudad: sus 11 distritos con nombre, el Guadalquivir y la dársena como agua, y las viviendas turísticas por sección censal (estadística experimental del INE a partir de anuncios; no es un registro de licencias). Lo que funciona allí pasa después al resto de ciudades.
+
+Fuera del municipio el mapa dibuja el terreno real en tono apagado, o el mar en las ciudades de costa. En una ciudad de interior un río que sale del mapa nunca se dibuja como mar.
 
 **Los valores son estimaciones.** El INE publica los datos por sección censal, no por hexágono. Reparto los habitantes de cada sección entre sus hexágonos según el suelo construido (clase 50 de ESA WorldCover, vista general de unos 74 m) y calculo cada lente a partir de ese reparto. Un hexágono queda sin dato cuando las secciones que concentran menos del 90 % de sus habitantes no tienen el valor, y donde no hay suelo construido no hay habitantes ni dato. Solo uso agregados por sección, distrito y municipio, nada sobre personas.
 
 Fuentes: INE (seccionado censal 2026, Atlas de distribución de renta de los hogares y Censo anual de población) y ESA WorldCover 10 m 2021 (CC BY 4.0). Las ciudades se definen en `pipeline/scopes.py`: añadir una es añadir una entrada.
 
 ```bash
-uv run python -m pipeline city madrid      # o madrid-auf, o all (unos 3 minutos y menos de 3 GB de memoria)
+uv run python -m pipeline city --only sevilla   # o madrid, madrid-auf...; `city all` construye las 69 (menos de 3 GB de memoria)
+uv run python -m pipeline city all --plan      # solo el plan: radio y hexágonos previstos por ciudad
 uv run python -m pipeline check            # incluye las comprobaciones de web/data/city/
 ```
 

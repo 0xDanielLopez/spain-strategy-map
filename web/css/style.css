@@ -343,6 +343,21 @@ body.panel-open #lens-area { right: calc(394px + var(--dock-right, 0px)); }
 .hib { font-weight: 600; }
 .lg-hint { margin-top: 4px; font-size: 10.5px; color: rgba(185,171,136,.75); font-style: italic; }
 .lg-hint.on { color: var(--gold-bright); font-style: normal; }
+/* Year slider of lenses with a series (play, range, selected year, "hoy" reset, small note). */
+.lg-years { margin-top: 4px; }
+.lg-yload { color: var(--ink-dim); font-size: 10.5px; font-style: italic; }
+.lg-yrow { display: flex; align-items: center; gap: 6px; }
+.lg-play { flex: none; width: 22px; height: 22px; padding: 0; line-height: 1; font-size: 11px; cursor: pointer; color: var(--gold-bright);
+  background: #1b2838; border: 1px solid var(--gold); border-radius: 50%; }
+.lg-yend { flex: none; font-size: 10px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.lg-yrange { flex: 1; min-width: 0; margin: 0; accent-color: var(--gold-bright); cursor: pointer; }
+.lg-yrow2 { display: flex; align-items: baseline; justify-content: center; gap: 8px; margin-top: 1px; }
+.lg-year { font-family: var(--serif); font-size: 21px; line-height: 1.1; color: var(--gold-bright); font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.lg-today { padding: 0; background: none; border: 0; border-bottom: 1px dotted var(--gold); color: var(--ink-dim); font-size: 10.5px; cursor: pointer; }
+.lg-today:hover { color: var(--gold-bright); }
+.lg-ynote { margin-top: 2px; color: rgba(185,171,136,.8); font-size: 9.5px; line-height: 1.3; }
+@media (max-width: 900px), (max-height: 700px) { .lg-ynote { display: none; } }
+body.dock-open #legend:not(.expanded) .lg-ynote { display: none; }
 /* A lens's caveat (lens.note), e.g. what a religion count does and does not measure. Shown everywhere, even on phones. */
 .lg-note { margin: -2px 0 6px; padding: 4px 7px; border-left: 2px solid var(--gold); background: rgba(201,164,92,.08);
   color: var(--ink); font-size: 10.5px; line-height: 1.35; }
@@ -553,4 +568,23 @@ body.panel-open #lens-area { right: calc(394px + var(--dock-right, 0px)); }
 }
 
 /* City maps: a long scope title ("Área urbana de Madrid") must not push the top-bar buttons off screen. */
-body.scope-map .brand-text { max-width: 185px; overflow: hidden; text-overflow: ellipsis; }
+body.scope-map .brand-text { max-width: none; overflow: visible; font-size: 14px; letter-spacing: .06em; }
+body.scope-map .brand-emblem { margin-right: 5px; }
+#scope-back { margin-left: 4px !important; }
+#scope-switch {
+  flex: none; height: 26px; max-width: 150px; padding: 0 6px; border-radius: 13px; font: 12px var(--sans); color: var(--ink);
+  background: rgba(0,0,0,.35); border: 1px solid rgba(201,164,92,.5); outline: none; cursor: pointer; text-overflow: ellipsis;
+}
+#scope-switch:focus { border-color: var(--gold-bright); }
+#scope-switch option { background: #1b2a3a; color: var(--ink); }
+body.scope-map #topbar { gap: 10px; }
+body.scope-map .search { flex: 0 1 270px; min-width: 190px; }
+body.scope-map .yields:empty { display: none; }
+/* Scope bar at 1366 px and below: keep the full title, drop the "Turn" label and the switcher's width first. */
+@media (max-width: 1400px) { body.scope-map #scope-switch { max-width: 110px; } body.scope-map .brand-text { font-size: 13px; letter-spacing: .03em; } }
+@media (max-width: 1000px) and (min-width: 701px) { body.scope-map .brand-text { display: block; font-size: 12px; } body.scope-map .search { min-width: 130px; } }
+/* Phones: the top bar scrolls sideways; the title stays hidden (the page title and the map caption carry it). */
+@media (max-width: 700px) { body.scope-map .search { flex: 0 0 110px; min-width: 110px; } #scope-switch { max-width: 104px; } body.scope-map .brand-text { display: none; } }
+/* City maps: the "Turn" source line is long and squeezes the search box; the Almanac carries the sources. */
+@media (max-width: 1600px) { body.scope-map .turn { display: none; } }
+@media (max-width: 700px) { body.scope-map .attribution { bottom: 58px; padding: 0 8px 0 58px; font-size: 10px; line-height: 1.25; } }
