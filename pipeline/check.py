@@ -30,7 +30,8 @@ from pathlib import Path
 from .core.paths import INTERIM, WEB_DATA
 
 REQUIRED = ["world.json", "cities.json", "nation.json", "sources.json"]
-OPTIONAL = ["states.json", "lenses.json", "resources.json", "infrastructure.json", "wonders.json", "counties.json", "districts.json", "citizens.json"]
+OPTIONAL = ["states.json", "lenses.json", "resources.json", "infrastructure.json", "wonders.json", "counties.json", "districts.json", "citizens.json",
+            "safety.json", "boja.json", "contracts_junta.json"]
 N_CCAA = 19
 LENS_FORMATS = {"int", "eur", "pct", "float", "minutes", "years", "category"}
 LENS_SCALES = {"linear", "log"}
@@ -47,6 +48,9 @@ COVER_KEYS = [
     "none", "forest_deciduous", "forest_evergreen", "forest_mixed", "scrub", "grassland",
     "pasture", "cropland", "wetland", "urban", "barren", "ice",
 ]
+CHANGE_LENSES = {"growth", "foreign_change"}  # fractions that can be below 0 and above 1
+NEW_LENS_IDS = {"non_primary_homes", "tourist_homes", "housing_density", "tourist_beds", "immigration", "foreign_change",
+                "born_abroad", "crime", "burglary"}
 PCT_KEYS = ["forest", "crop", "grass", "shrub", "wetland", "developed"]
 COLOR = re.compile(r"^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?([0-9a-fA-F]{2})?$")
 
@@ -450,8 +454,9 @@ def check_land(r: Report, what: str, rows: list) -> None:
 
 
 COUNTIES_COLUMNS = ["geoid", "name", "state", "province", "population", "land_km2", "density", "growth", "age_mean",
-                    "elderly", "foreign", "household", "income", "poverty", "higher_education", "auf", "cell"]
-COUNTIES_PCT = ["growth", "elderly", "foreign", "poverty", "higher_education"]
+                    "elderly", "foreign", "household", "income", "poverty", "higher_education", "auf", "cell",
+                    "dwellings_total", "non_primary", "tourist", "born_abroad", "immigration", "crime_rate"]
+COUNTIES_PCT = ["growth", "elderly", "foreign", "poverty", "higher_education", "non_primary", "tourist", "born_abroad"]
 
 
 def check_counties_file(r: Report, doc, world=None, cities=None) -> None:
@@ -596,10 +601,17 @@ def check_lenses(r: Report, doc, ctx: dict | None, source_ids: set | None = None
             off = [i for i, v in enumerate(vals) if v is not None and ctx["owner"][i] < 0]
             if off:
                 r.fail(f"{what}: {len(off)} values on non-Spanish cells (must be null)")
-        if lens["format"] == "pct" and lens["id"] != "growth" and any(is_num(v) and not -1e-9 <= v <= 1 + 1e-9 for v in vals):
+        if lens["format"] == "pct" and lens["id"] not in CHANGE_LENSES and any(is_num(v) and not -1e-9 <= v <= 1 + 1e-9 for v in vals):
             r.fail(f"{what}: format pct but some values are outside 0..1 (pct lenses are fractions)")
-        if lens["id"] == "growth" and any(is_num(v) and v < -1 for v in vals):
-            r.fail(f"{what}: growth below -100 %")
+        if lens["id"] in CHANGE_LENSES and any(is_num(v) and v < -1 for v in vals):
+            r.fail(f"{what}: change below -100 %")
+        if lens["id"] in NEW_LENS_IDS:
+            if any(is_num(v) and not math.isfinite(v) for v in vals):
+                r.fail(f"{what}: non-finite value")
+            if any(is_num(v) and v < 0 for v in vals) and lens["id"] not in CHANGE_LENSES:
+                r.fail(f"{what}: negative value")
+            k = sum(1 for v in vals if v is not None)
+            r.note(f"new lens {lens['id']}: coverage {k} hexes" + (f" ({k / spanish:.1%} of {spanish})" if spanish else ""))
         filled = sum(1 for v in vals if v is not None)
         r.note(f"lens {lens['id']}: {filled} non-null hexes ({filled / spanish:.1%} of {spanish} Spanish land hexes)" if spanish else f"lens {lens['id']}: {filled} non-null hexes")
     if r.count("FAIL") == fails_before:
@@ -769,6 +781,107 @@ def check_map_layers(r: Report, docs: dict, world) -> None:
 # ---------------------------------------------------------------- entry point
 
 
+# ---------------------------------------------------------------- transparency files (privacy + shape)
+
+PRIVATE_KEY = re.compile(r"winner|adjudicatari|ganador|\bnif\b|\bdni\b|\bnie\b|cif|titulo|title|body|resumen|texto", re.I)
+PRIVATE_VALUE = [re.compile(p) for p in (
+    r"(?<![0-9A-Za-z])\d{8}[A-Z](?![0-9A-Za-z])",            # DNI
+    r"(?<![0-9A-Za-z])[XYZ]\d{7}[A-Z](?![0-9A-Za-z])",        # NIE
+    r"(?<![0-9A-Za-z])[A-HJNP-SUVW]\d{7}[0-9A-J](?![0-9A-Za-z])",  # NIF of an entity
+)]
+
+
+def privacy_violations(doc, path: str = "") -> list[str]:
+    """Keys named like a winner / tax id / title / body and strings that look like a DNI, NIE or NIF, anywhere in `doc`."""
+    out: list[str] = []
+    if isinstance(doc, dict):
+        for k, v in doc.items():
+            if isinstance(k, str) and PRIVATE_KEY.search(k):
+                out.append(f"{path}/{k}: key")
+            out += privacy_violations(v, f"{path}/{k}")
+    elif isinstance(doc, list):
+        for i, v in enumerate(doc):
+            out += privacy_violations(v, f"{path}[{i}]")
+    elif isinstance(doc, str):
+        if any(p.search(doc) for p in PRIVATE_VALUE):
+            out.append(f"{path}: id-like string")
+    return out
+
+
+def _attrs_ok(doc) -> bool:
+    return _attr_ok(doc.get("attribution"))
+
+
+def check_transparency_files(r: Report, safety, boja, junta, counties=None, cities=None) -> None:
+    for name, doc, keys in (("safety.json", safety, ["years", "typologies", "national", "ccaa", "provinces", "municipalities", "note", "attribution"]),
+                            ("boja.json", boja, ["years", "sections", "by_year_section", "by_organisation", "note", "attribution"]),
+                            ("contracts_junta.json", junta, ["years", "provinces", "organs", "amount_basis", "note", "attribution"])):
+        if doc is None:
+            continue
+        if not need_keys(r, name, doc, keys):
+            continue
+        if not _attrs_ok(doc):
+            r.fail(f"{name}: attribution must be a non-empty list of {{data, source, license}}")
+        bad = privacy_violations(doc)
+        (r.fail if bad else r.ok)(f"{name}: privacy structure " + (f"violations {_sample(bad)}" if bad else "clean (codes, public bodies and numbers only)"))
+    if safety is not None and isinstance(safety.get("municipalities"), dict):
+        keys = {t["key"] for t in safety["typologies"]}
+        codes = {x[0] for x in counties["rows"]} if counties else None
+        badm = [c for c, m in safety["municipalities"].items() if not (len(c) == 5 and c.isdigit()) or (codes is not None and c not in codes)]
+        if badm:
+            r.fail(f"safety.json: municipality codes not in counties.json: {_sample(badm)}")
+        negs = [c for c, m in safety["municipalities"].items() for y in safety["years"]
+                for k, v in (m.get(y) or {}).items() if k not in keys or (v is not None and (not is_int(v) or v < 0))]
+        if negs:
+            r.fail(f"safety.json: unknown typology or a value that is not a non-negative integer or null: {_sample(negs)}")
+        if len(safety["municipalities"]) < 400:
+            r.warn(f"safety.json: only {len(safety['municipalities'])} towns (the 2025 closing has 427)")
+        r.note(f"safety.json: {len(safety['municipalities'])} towns, {len(safety['provinces'])} provinces, {len(safety['ccaa'])} CCAA")
+    if junta is not None and isinstance(junta.get("provinces"), dict):
+        badp = [c for c in junta["provinces"] if not (len(c) == 2 and c.isdigit())]
+        if badp:
+            r.fail(f"contracts_junta.json: province keys must be 2-digit INE codes: {_sample(badp)}")
+        for c, p in junta["provinces"].items():
+            for y in junta["years"]:
+                d = p.get(y) or {}
+                if d and (d["single_bidder"] > d["n"] or d["under_15k"] > d["n"] or d["under_40k"] > d["n"] or d["under_15k"] > d["under_40k"]):
+                    r.fail(f"contracts_junta.json {c} {y}: a share is above 100 % or the tranches are inconsistent")
+    if boja is not None and isinstance(boja.get("by_year_section"), dict):
+        for y, o in boja["by_year_section"].items():
+            if any(not is_int(v) or v < 0 for v in o.values()):
+                r.fail(f"boja.json {y}: counts must be non-negative integers")
+        org_tot = {y: sum(g["counts"].get(y, 0) for g in boja["by_organisation"]) for y in boja["years"]}
+        for y in boja["years"]:
+            if org_tot[y] > sum(boja["by_year_section"][y].values()):
+                r.fail(f"boja.json {y}: bodies add up to more than the year total")
+
+
+def check_foreign_consistency(r: Report, lenses, counties, citizens, interim_dir: Path) -> None:
+    """The foreign lens, counties.json and citizens.json must read the same table (65032, 2026)."""
+    p = Path(interim_dir) / "ine_migration.json"
+    if not p.exists() or counties is None:
+        r.note("foreign consistency: ine_migration interim or counties.json missing, skipped")
+        return
+    nat = json.loads(p.read_text())["data"]["national"]
+    foreign, total = nat["foreign"]["2026"], nat["total"]["2026"]
+    cols = counties["columns"]
+    j, pj = cols.index("foreign"), cols.index("population")
+    num = sum(x[j] * x[pj] for x in counties["rows"] if x[j] is not None and x[pj])
+    den = sum(x[pj] for x in counties["rows"] if x[j] is not None and x[pj])
+    share = num / den if den else 0
+    dev = abs(share - foreign / total)
+    (r.ok if dev < 0.002 else r.fail)(f"foreign consistency: counties.json {share:.4%} vs national table {foreign / total:.4%}")
+    lens = next((l for l in (lenses or {}).get("lenses", []) if l.get("id") == "foreign"), None)
+    if lens is not None and "65032" not in lens.get("description", ""):
+        r.fail("foreign consistency: the foreign lens does not cite table 65032")
+    if citizens is not None:
+        cz = (citizens.get("national") or {}).get("nationality")
+        if cz and cz["counts"]["foreign"] != foreign:
+            r.fail(f"foreign consistency: citizens.json national foreign {cz['counts']['foreign']:,} != table 65032 {foreign:,}")
+        elif cz:
+            r.ok(f"foreign consistency: citizens.json national foreign {foreign:,} equals table 65032 (2026)")
+
+
 def _load(r: Report, web_dir: Path, name: str, required: bool):
     p = web_dir / name
     if not p.exists():
@@ -864,6 +977,9 @@ def run(web_dir: Path = WEB_DATA, interim_dir: Path = INTERIM, quiet: bool = Fal
     if docs.get("lenses.json") is not None:
         check_lenses(r, docs["lenses.json"], ctx, source_ids)
         check_conservation(r, interim_dir, docs.get("nation.json"))
+
+    check_transparency_files(r, docs.get("safety.json"), docs.get("boja.json"), docs.get("contracts_junta.json"), docs.get("counties.json"), docs["cities.json"])
+    check_foreign_consistency(r, docs.get("lenses.json"), docs.get("counties.json"), docs.get("citizens.json"), interim_dir)
 
     check_map_layers(r, docs, docs["world.json"])
 

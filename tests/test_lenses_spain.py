@@ -68,5 +68,60 @@ class Formulas(unittest.TestCase):
         self.assertTrue(d[0] > 0 and d[1] > d[0])
 
 
+class NewLenses(unittest.TestCase):
+    """Housing, migration and crime terms on invented municipalities (no real rows)."""
+
+    HOUSING = {"municipalities": {"99001": {"dwellings_total": 100, "dwellings_primary": 60, "dwellings_non_primary": 40,
+                                             "tourist_homes": 10, "tourist_beds": 50},
+                                   "99002": {"dwellings_total": 200, "dwellings_primary": 190, "dwellings_non_primary": 10,
+                                             "tourist_homes": None, "tourist_beds": None}}}
+    MIGRATION = {"municipalities": {"99001": {
+        "total": {"2021": 280, "2022": 290, "2023": 300, "2024": 310, "2026": 330},
+        "foreign": {"2021": 20, "2026": 60}, "born_abroad": {"2026": 90},
+        "immigrations_abroad": {"2022": 3, "2023": 6, "2024": 9}}}}
+    CRIME = {"municipalities": {"99001": {"2025": {"total": 33, "burglary_dwellings": 3}, "2024": {"total": 30}}}}
+    INE = {"99001": {"pop": 330}, "99002": {"pop": 500}}
+
+    def recs(self):
+        return lenses.merge_records(["99001", "99002", "99003"], self.INE, self.HOUSING, self.MIGRATION, self.CRIME)
+
+    def test_merge_keeps_missing_as_none(self):
+        a, b, c = self.recs()
+        self.assertEqual((a["dw_total"], a["foreign_2026"], a["imm_sum"], a["imm_pop_sum"]), (100, 60, 18, 900))
+        self.assertIsNone(b["tourist_homes"])
+        self.assertIsNone(b["foreign_2026"])
+        self.assertIsNone(b["crime_total"])
+        self.assertIsNone(c["dw_total"])  # not in any table
+
+    def test_terms(self):
+        a, b, _ = self.recs()
+        self.assertEqual(lenses._terms_non_primary(a), (40, 100))
+        self.assertEqual(lenses._terms_tourist_homes(a), (10, 100))
+        self.assertIsNone(lenses._terms_tourist_homes(b))
+        self.assertEqual(lenses._terms_tourist_beds(a), (5000.0, 330))  # beds per 100 inhabitants
+        self.assertEqual(lenses._terms_immigration(a), (18000.0, 900))  # mean over mean = 20 per 1,000 a year
+        self.assertEqual(lenses._terms_foreign_change(a), (60, 20))
+        self.assertEqual(lenses._terms_born_abroad(a), (90, 330))
+        self.assertEqual(lenses._terms_crime(a), (33000.0, 330))
+        self.assertEqual(lenses._terms_burglary(a), (3000.0, 330))
+        self.assertIsNone(lenses._terms_crime(b))
+
+    def test_immigration_needs_all_three_years(self):
+        mig = {"municipalities": {"99001": {"total": {"2022": 1, "2023": 1, "2024": 1}, "immigrations_abroad": {"2022": 3, "2023": None, "2024": 9}}}}
+        r = lenses.merge_records(["99001"], self.INE, self.HOUSING, mig, self.CRIME)[0]
+        self.assertIsNone(r["imm_sum"])
+
+    def test_crime_hex_needs_90_percent_of_people_with_data(self):
+        recs = self.recs()
+        # hex 0: municipality 0 (330 people, crime) + municipality 1 (500, no crime): 40 % covered -> null
+        self.assertIsNone(lenses.hex_ratio([(0, 1.0), (1, 1.0)], recs, lenses._terms_crime))
+        self.assertAlmostEqual(lenses.hex_ratio([(0, 1.0)], recs, lenses._terms_crime), 100.0)
+
+    def test_housing_density_by_dwellings(self):
+        recs = self.recs()
+        self.assertAlmostEqual(lenses.hex_density([(0, 1.0), (1, 1.0)], recs, 100.0, "dw_total"), 3.0)
+        self.assertIsNone(lenses.hex_density([(0, 1.0), (2, 1.0)], recs, 100.0, "dw_total"))  # municipality 2 has none
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -153,7 +153,7 @@ export function mount(ctx) {
     "El mapa de crecimiento colorea las áreas urbanas por su propia variación; los hexágonos grises quedan fuera de ellas. Cambia el gráfico a Comunidades para colorear todos los hexágonos por su comunidad.",
     `El crecimiento usa las estimaciones de población del INE; los totales de población son ${esc(data.vintage)}. Son estimaciones distintas y no cuadran exactamente.`,
     `Las cifras municipales son de ${esc(data.countyVintage)}, así que pueden ir desfasadas respecto a las de áreas urbanas y comunidades.`,
-    "La edad es la edad media del municipio (una media, no una mediana); la media de un grupo de municipios no es la media de sus medias. La nacionalidad extranjera mide el pasaporte, no el país de nacimiento.",
+    "La edad es la edad media del municipio (una media, no una mediana); la media de un grupo de municipios no es la media de sus medias. La nacionalidad extranjera (Censo anual de población, 1 de enero de 2026, tabla 65032 del INE) mide el pasaporte, no el país de nacimiento; la edad es de 2024.",
     ...(data.countiesOffMap ? [`${int(data.countiesOffMap)} de los municipios más pequeños son menores que un hexágono, así que al seleccionarlos no se marca nada en el mapa.`] : []),
   ]));
 

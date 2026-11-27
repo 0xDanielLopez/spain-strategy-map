@@ -18,8 +18,9 @@ import unicodedata
 
 from ..core.store import load_interim, write_web
 from .economy import KEYS
+from .lenses import merge_records
 
-REQUIRES = ["_world", "gisco_lau", "ine", "auf", "world.json", "cities.json", "nation.json"]
+REQUIRES = ["_world", "gisco_lau", "ine", "ine_housing", "ine_migration", "interior_crime", "auf", "world.json", "cities.json", "nation.json"]
 PRODUCES = ["counties.json", "districts.json", "citizens.json"]
 
 MIN_LQ = 1.25
@@ -104,13 +105,19 @@ COUNTY_FIELDS = [
     ("growth", "Crecimiento", "pct", "variación de la población", "neutral", "ine", "Variación de la población entre 2021 y 2026 (Censo anual de población, INE)."),
     ("age_mean", "Edad media", "float", "años", "neutral", "ine", "Edad media de los residentes (media, no mediana; INE 2024)."),
     ("elderly", "Mayores de 65", "pct", "% de la población", "neutral", "ine", "Porcentaje de residentes de 65 años o más (INE 2024)."),
-    ("foreign", "Nacionalidad extranjera", "pct", "% de la población", "neutral", "ine", "Porcentaje de residentes con nacionalidad extranjera, no con país de nacimiento extranjero (INE 2024)."),
+    ("foreign", "Nacionalidad extranjera", "pct", "% de la población", "neutral", "ine", "Porcentaje de residentes con nacionalidad extranjera, no con país de nacimiento extranjero (Censo anual de población 2026, tabla 65032, INE)."),
     ("household", "Tamaño del hogar", "float", "personas", "neutral", "ine", "Personas por hogar (INE 2024)."),
     ("income", "Renta por persona", "eur", "€", "good", "ine", "Renta media por persona, media y no mediana (Atlas de distribución de renta de los hogares, INE 2024)."),
     ("poverty", "Bajo el umbral de pobreza", "pct", "% de la población", "bad", "ine", "Porcentaje de población con renta por debajo del 60 % de la mediana (INE 2024)."),
     ("higher_education", "Estudios superiores", "pct", "% de la población de 15 años o más", "good", "ine", "Residentes de 15 años o más con estudios superiores (INE 2024; solo municipios con dato)."),
     ("auf", "Área urbana", "text", "", "neutral", "auf", "Código del área urbana funcional (INE) a la que pertenece, si pertenece a alguna."),
     ("cell", "Hexágono", "int", "", "neutral", "gisco_lau", "Hexágono representativo del municipio en el mapa."),
+    ("dwellings_total", "Viviendas", "int", "viviendas", "neutral", "ine_housing", "Viviendas familiares totales (Censo de población y viviendas 2021, INE)."),
+    ("non_primary", "Viviendas no principales", "pct", "% de las viviendas", "neutral", "ine_housing", "Viviendas que no son residencia principal (segundas residencias y vacías; Censo 2021, INE)."),
+    ("tourist", "Viviendas turísticas", "pct", "% de las viviendas", "neutral", "ine_housing", "Viviendas turísticas de mayo de 2026 (estadística experimental, INE) sobre las viviendas del Censo 2021."),
+    ("born_abroad", "Nacidos en el extranjero", "pct", "% de la población", "neutral", "ine_migration", "Residentes nacidos en el extranjero, españoles incluidos (Censo anual de población 2026, tabla 65031, INE)."),
+    ("immigration", "Llegadas desde el extranjero", "float", "por 1.000 hab. al año", "neutral", "ine_migration", "Llegadas desde el extranjero, media anual de 2022 a 2024 por 1.000 habitantes (INE); incluye a españoles que vuelven."),
+    ("crime_rate", "Infracciones penales", "float", "por 1.000 hab.", "bad", "interior_crime", "Infracciones penales conocidas en 2025 por 1.000 habitantes (Ministerio del Interior; solo municipios de más de 20.000 habitantes; la población flotante sube la tasa en zonas turísticas)."),
 ]
 COLUMNS = [f[0] for f in COUNTY_FIELDS]
 
@@ -123,15 +130,22 @@ def county_row(muni: dict, rec: dict | None, state: str, auf_id: str | None, cel
     """One counties.json row. `rec` = the ine interim record of the municipality (None when absent)."""
     rec = rec or {}
     pop, pop21, area = rec.get("pop"), rec.get("pop_2021"), muni.get("area_km2")
-    ps = rec.get("pct_spanish")
+    fo, tot26 = rec.get("foreign_2026"), rec.get("total_2026")
+    dw, tourist = rec.get("dw_total"), rec.get("tourist_homes")
+    imm, imm_pop, crime = rec.get("imm_sum"), rec.get("imm_pop_sum"), rec.get("crime_total")
     p15, hed = rec.get("pop15"), rec.get("higher_ed")
     return [
         muni["code"], muni["name"], state, muni["province"], pop,
         _r(area, 1), round(pop / area) if pop is not None and area else None,
         _r(pop / pop21 - 1) if pop is not None and pop21 else None,
-        rec.get("age_mean"), rec.get("pct65"), _r(1 - ps) if ps is not None else None, rec.get("hh_size"),
+        rec.get("age_mean"), rec.get("pct65"), _r(fo / tot26) if fo is not None and tot26 else None, rec.get("hh_size"),
         rec.get("income_pp"), rec.get("below60"), _r(hed / p15) if hed is not None and p15 else None,
         auf_id, cell if cell >= 0 else None,
+        dw, _r(rec["dw_non_primary"] / dw) if dw and rec.get("dw_non_primary") is not None else None,
+        _r(tourist / dw) if dw and tourist is not None else None,
+        _r(rec["born_abroad_2026"] / tot26) if tot26 and rec.get("born_abroad_2026") is not None else None,
+        _r(1000 * imm / imm_pop, 2) if imm is not None and imm_pop else None,
+        _r(1000 * crime / pop, 1) if crime is not None and pop else None,
     ]
 
 
@@ -261,8 +275,8 @@ def citizens_of(codes: list[str], ine_m: dict) -> dict:
             cov[key][1] += 1
         if pop and r.get("pct65") is not None:
             age[0] += pop; age[1] += r["pct65"] * pop; cov["age"][0] += 1
-        if pop and r.get("pct_spanish") is not None:
-            nat[0] += pop; nat[1] += (1 - r["pct_spanish"]) * pop; cov["nationality"][0] += 1
+        if r.get("total_2026") and r.get("foreign_2026") is not None:  # same table as the foreign lens (65032, 2026)
+            nat[0] += r["total_2026"]; nat[1] += r["foreign_2026"]; cov["nationality"][0] += 1
         if r.get("pop15") and r.get("higher_ed") is not None:
             edu[0] += r["pop15"]; edu[1] += r["higher_ed"]; cov["education"][0] += 1
         if pop and r.get("age_mean") is not None:
@@ -304,13 +318,14 @@ def build() -> None:
     nation_doc = json.loads((WEB_DATA / "nation.json").read_text())
     lau = load_interim("gisco_lau")
     ine = load_interim("ine")
-    ine_m = ine["municipalities"]
     codes = [c["geoid"] for c in world["counties"]]
+    ine_m = dict(zip(codes, merge_records(codes, ine["municipalities"], load_interim("ine_housing"),
+                                          load_interim("ine_migration"), load_interim("interior_crime"))))
     muni_by_code = {m["code"]: m for m in lau["municipalities"]}
     abbr = {c["code"]: c["iso"] for c in CCAA}
     auf_of = {m: c["id"] for c in cities for m in c["counties"]}
     counties = build_counties(codes, muni_by_code, ine_m, abbr, auf_of, world["muni_cell"],
-                              "INE: Censo anual de población 2026, renta y demografía 2024")
+                              "INE: Censo anual de población 2026, renta y demografía 2024, Censo 2021 (viviendas); Ministerio del Interior: Balance de Criminalidad 2025")
     write_web("counties.json", counties)
     names = nation_doc["industries"]
     districts = build_districts(cities, nation_doc, names, 2024)

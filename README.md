@@ -37,6 +37,9 @@ Fases F0 (mapa base), F1 (lentes del INE), F2 (ciudades), F3 (capas del mapa) y 
   por aeropuerto, sin toneladas en los puertos), centrales nucleares, hidroeléctricas y de gas del inventario de 2021, y patrimonio mundial y parques
   nacionales. Tres Consejeros más: energía, infraestructuras y patrimonio y parques.
 
+- Nuevas lentes: vivienda (viviendas no principales y turísticas del Censo 2021 y de la estadística experimental del INE, plazas turísticas, viviendas por km2), población (llegadas desde el extranjero, variación de extranjeros 2021-2026, nacidos en el extranjero) y seguridad (infracciones penales y robos con fuerza en domicilios por 1.000 habitantes). La seguridad solo cubre los 427 municipios que publica Interior, así que muchos hexágonos salen sin dato, nunca con 0. Son hechos registrados por la policía, no miden la seguridad real ni cuentan a la población flotante.
+- Consejero de Transparencia (Escribano Mayor): seguridad por territorio y municipio, disposiciones del BOJA y contratación menor de la Junta de Andalucía. Solo agregados: no publico nombres de personas ni de adjudicatarios, ni textos de anuncios. Ver [PRIVACY.md](PRIVACY.md).
+
 Los Consejeros de defensa y prosperidad siguen ocultos: no tengo datos abiertos para ellos. Los pasajeros de los aeropuertos vienen de Eurostat (a partir de datos de Aena); no uso toneladas de los puertos, porque vienen de Puertos del Estado.
 
 ### Qué no cuentan las capas
@@ -97,6 +100,11 @@ uv run python -m pipeline serve     # abre http://127.0.0.1:8765
 | [Eurostat avia_paoa](https://ec.europa.eu/eurostat/databrowser/view/avia_paoa/default/table) | Eurostat (datos de Aena) | Reutilización citando la fuente | Pasajeros por aeropuerto |
 | [Global Power Plant Database v1.3](https://datasets.wri.org/dataset/globalpowerplantdatabase) (2021) | World Resources Institute | CC BY 4.0 | Centrales nucleares, hidroeléctricas y de gas |
 | [Wikidata](https://www.wikidata.org/) | Wikimedia | CC0 | Patrimonio mundial y parques nacionales |
+| [Balance de Criminalidad](https://estadisticasdecriminalidad.ses.mir.es/) (cierres 2024 y 2025) | Ministerio del Interior, Portal Estadístico de Criminalidad | Reutilización comercial y no comercial, sin alterar el sentido de los datos. Origen de los datos: Portal Estadístico de Criminalidad. Interior no participa ni apoya este proyecto | Infracciones penales por tipo, en 427 municipios, provincias y comunidades |
+| INE: viviendas del Censo 2021 (59525) y viviendas turísticas, estadística experimental (39363) | Instituto Nacional de Estadística | Reutilización permitida citando la fuente | Lentes de vivienda |
+| INE: extranjeros y nacidos en el extranjero por municipio (65032, 65031), inmigración desde el extranjero (69696) | Instituto Nacional de Estadística | Reutilización permitida citando la fuente | Lentes de población y mapa de municipios |
+| [BOJA, API de datos abiertos](https://www.juntadeandalucia.es/boja) | Junta de Andalucía | CC BY 4.0 | Recuento de disposiciones por año, sección y organismo (sin títulos ni textos) |
+| Contratación menor de la Junta de Andalucía, 2024 y 2025 | Junta de Andalucía, Plataforma de Contratación | CC BY 4.0 | Contratos, euros y ofertas únicas por provincia y órgano (sin adjudicatarios) |
 
 El mapa muestra la línea de atribución en una esquina, como piden las condiciones de GISCO. El pipeline guarda la URL,
 el sha256, el tamaño y la fecha de cada fichero descargado en `web/data/sources.json`, y `web/data/world.json` lleva

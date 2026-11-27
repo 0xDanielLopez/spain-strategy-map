@@ -835,3 +835,48 @@ albers [lat1, lat2, lat0, lon0], frame [x0, y0, x1, y1] (main-Albers km, y up), 
 returns `{project(lon, lat) -> [x, y], hidden(lon, lat) -> bool}`; `hidden` is true for a mainland point that falls under
 an inset frame and for an inset-region point outside its frame. `tests/test_projection_js.py` compares both sides
 (max error 0.01 km).
+
+## Spain: housing, migration and safety lenses; transparency files
+
+**New lens ids** (`lenses.json`, groups `housing` (Vivienda), `people`, `safety` (Seguridad); built by `lenses.py`; each
+lens is a ratio of weighted municipal sums per hex, null below COVERAGE_MIN = 0.9 of the hex population, never 0):
+`non_primary_homes` (% of dwellings, Censo 2021), `tourist_homes` (% of dwellings, INE experimental, latest period
+`tourist_period`), `tourist_beds` (per 100 inhabitants), `housing_density` (dwellings/km2), `immigration` (arrivals from
+abroad per 1,000 inhabitants a year), `foreign_change` (foreign nationality 2021-2026), `born_abroad` (% of population),
+`crime` (infracciones penales per 1,000, latest Balance closing) and `burglary` (burglaries in dwellings per 1,000). The
+`foreign` lens now reads INE 65032. Crime and burglary only exist for the 427 municipalities Interior publishes, so only
+hexes where those towns hold at least 90 % of the population have a value (137 of 1,949).
+`counties.json` adds the columns `dwellings_total`, `non_primary`, `tourist`, `born_abroad`, `immigration`, `crime_rate`
+(null = no data).
+
+Every transparency file is built by `pipeline/build/transparency.py` and has `vintage`, `updated`, `note` and
+`attribution` [{data, source, license}]. Only codes, public-body names and numbers (`check.privacy_violations` runs on
+each file before it is written).
+
+### safety.json
+
+```jsonc
+{ "years": ["2024", "2025"],
+  "typologies": [{"key": "total", "label": "...", "additive": false}],   // 19 rows
+  "national": {"population": 49618585, "population_year": 2026, "2025": {"total": 0, "theft": 0}},
+  "ccaa": {"AN": {"name": "...", "population": 0, "2024": {}, "2025": {}}},
+  "provinces": {"41": {"name": "...", "population": 0, "2024": {}, "2025": {}}},
+  "municipalities": {"41091": {"name": "...", "population": 0, "2024": {}, "2025": {}}} }  // 427 towns
+```
+
+`total` already includes every other typology (`conventional` + `cybercrime`; the rest are parts of those), so consumers
+read `total` and never sum the typologies. `population` is the Censo anual 2026, not the year of the facts. A missing
+count is `null`, never 0. 2024 values come from the 2025 closing (which restates 2024).
+
+### boja.json
+
+`{"years", "sections": [{id, name}], "by_year_section": {year: {section_id: n}}, "by_organisation": [{name, counts:
+{year: n}}]}`. Counts of dispositions only; no titles. Non-public issuers are grouped as "Otros emisores".
+
+### contracts_junta.json
+
+`{"years", "amount_basis", "year_meaning", "thresholds_eur": [15000, 40000], "provinces": {"41": {name, year: {n, amount,
+single_bidder, bidders_known, under_15k, under_40k, band_15k, band_40k}}}, "unassigned": {sin_provincia|otros: {...}},
+"organs": [{name, by_year}]}`. Amounts are award amounts without VAT. The single-bidder share uses `bidders_known` as denominator.
+No winners and no titles are read.
+

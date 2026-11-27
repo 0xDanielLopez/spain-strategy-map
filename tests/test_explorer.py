@@ -60,21 +60,28 @@ class Specialisations(unittest.TestCase):
 class Counties(unittest.TestCase):
     def test_row_nulls_and_values(self):
         muni = {"code": "01001", "name": "X", "province": "01", "ccaa": "16", "area_km2": 20.0}
-        rec = {"pop": 1000, "pop_2021": 800, "age_mean": 44.1, "pct65": 0.2, "pct_spanish": 0.9, "hh_size": 2.5,
-               "income_pp": 15000.0, "below60": None, "pop15": 800, "higher_ed": 200}
+        rec = {"pop": 1000, "pop_2021": 800, "age_mean": 44.1, "pct65": 0.2, "foreign_2026": 100, "total_2026": 1000,
+               "hh_size": 2.5, "income_pp": 15000.0, "below60": None, "pop15": 800, "higher_ed": 200,
+               "dw_total": 500, "dw_non_primary": 100, "tourist_homes": 25, "born_abroad_2026": 150,
+               "imm_sum": 30, "imm_pop_sum": 3000, "crime_total": 50}
         row = explorer.county_row(muni, rec, "PV", None, 5)
         d = dict(zip(explorer.COLUMNS, row))
         self.assertEqual((d["density"], d["growth"], d["foreign"], d["higher_education"]), (50, 0.25, 0.1, 0.25))
         self.assertIsNone(d["poverty"])
         self.assertIsNone(d["auf"])
+        self.assertEqual((d["dwellings_total"], d["non_primary"], d["tourist"], d["born_abroad"]), (500, 0.2, 0.05, 0.15))
+        self.assertEqual((d["immigration"], d["crime_rate"]), (10.0, 50.0))
+        # a municipality without crime data (under 20,000 inhabitants) has null, never 0
+        rec2 = {k: v for k, v in rec.items() if k != "crime_total"}
+        self.assertIsNone(dict(zip(explorer.COLUMNS, explorer.county_row(muni, rec2, "PV", None, 5)))["crime_rate"])
         empty = dict(zip(explorer.COLUMNS, explorer.county_row(muni, None, "PV", None, -1)))
         self.assertTrue(all(empty[k] is None for k in ("population", "density", "growth", "foreign", "income", "cell")))
 
 
 class Citizens(unittest.TestCase):
     ine = {
-        "a": {"pop": 1000, "pct65": 0.2, "pct_spanish": 0.9, "pop15": 800, "higher_ed": 200, "age_mean": 40.0},
-        "b": {"pop": 3000, "pct65": 0.1, "pct_spanish": 0.8, "age_mean": 50.0},  # no education data
+        "a": {"pop": 1000, "pct65": 0.2, "total_2026": 1000, "foreign_2026": 100, "pop15": 800, "higher_ed": 200, "age_mean": 40.0},
+        "b": {"pop": 3000, "pct65": 0.1, "total_2026": 3000, "foreign_2026": 600, "age_mean": 50.0},  # no education data
         "c": None,
     }
 
