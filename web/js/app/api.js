@@ -341,7 +341,7 @@ export function createUi(app, { toast, onLayout }) {
     const host = document.querySelector("#topbar .tb-buttons");
     if (!host) return null;
     if (id) document.getElementById(id)?.remove();
-    const b = document.createElement("botón");
+    const b = document.createElement("button");
     if (id) b.id = id;
     b.type = "button";
     b.className = "btn btn-ext" + (label ? "" : " btn-icon");
@@ -427,7 +427,7 @@ export function createMapToggles({ dock, after, area, hash, onChange }) {
 
   function ensureDom() {
     if (btn) return;
-    btn = document.createElement("botón");
+    btn = document.createElement("button");
     btn.id = "btn-maplayers";
     btn.type = "button";
     btn.className = "lens-btn res-toggle map-layers-btn";

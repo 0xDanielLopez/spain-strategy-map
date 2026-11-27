@@ -1,4 +1,4 @@
-// Top-bar search over cities and states: prefix matches first, then word-prefix, then substring; ties by population.
+// Top-bar search over cities, comunidades and municipios (accent-insensitive): prefix matches first, then word-prefix, then substring; ties by population.
 import { esc, popShort } from "../format.js";
 import { icon } from "../ui/icon.js";
 
@@ -6,7 +6,8 @@ const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toL
 const MAX = 8;
 
 /**
- * opts: {cities, states (list of {name, abbr, population?}), onPick({kind:'city'|'state', city?, index?})}
+ * opts: {cities, states (list of {name, abbr, population?}), munis (list of {name, ccaa, cell}),
+ * onPick({kind:'city'|'state'|'muni', city?, index?, cell?})}
  */
 export function initSearch(opts) {
   const input = document.getElementById("search-input");
@@ -28,6 +29,12 @@ export function initSearch(opts) {
     entries.push({ kind: "state", index, name: s.name, n: norm(s.name), full: norm(s.abbr), abbr: (s.abbr || "").toLowerCase(),
       pop: s.population || 0, sub: "Comunidad", label: s.name });
   });
+
+  for (const m of opts.munis || []) {
+    if (!m || !(m.cell >= 0)) continue; // a municipality with no hex cannot be flown to
+    entries.push({ kind: "muni", cell: m.cell, name: m.name, n: norm(m.name), full: norm(m.ccaa), pop: 0,
+      sub: `Municipio · ${m.ccaa}`, label: m.name });
+  }
 
   let results = [];
   let sel = -1;
@@ -64,7 +71,7 @@ export function initSearch(opts) {
 
   function render() {
     if (!results.length) {
-      box.innerHTML = input.value.trim() ? `<div class="sr-empty">Ninguna ciudad ni comunidad coincide con “${esc(input.value.trim())}”</div>` : "";
+      box.innerHTML = input.value.trim() ? `<div class="sr-empty">Ningún municipio ni comunidad coincide con “${esc(input.value.trim())}”</div>` : "";
       box.hidden = !input.value.trim();
       input.setAttribute("aria-expanded", String(!box.hidden));
       input.removeAttribute("aria-activedescendant");
@@ -73,7 +80,7 @@ export function initSearch(opts) {
     }
     box.innerHTML = results
       .map((e, i) => `<div class="sr-item ${i === sel ? "sel" : ""}" role="option" id="sr-${i}" aria-selected="${i === sel}" data-i="${i}">
-        <span class="sr-ic">${e.kind === "state" ? icon("terrain", "🗺️", { size: 16 }) : icon("pop", "🏙️", { size: 16 })}</span>
+        <span class="sr-ic">${e.kind === "state" ? icon("terrain", "🗺️", { size: 16 }) : icon("pop", e.kind === "muni" ? "📍" : "🏙️", { size: 16 })}</span>
         <span class="sr-main"><b>${esc(e.label)}</b><span class="sr-sub">${esc(e.sub)}</span></span>
         <span class="sr-pop">${e.pop ? popShort(e.pop) : ""}</span></div>`)
       .join("");
@@ -90,7 +97,7 @@ export function initSearch(opts) {
     close();
     input.value = "";
     input.blur();
-    opts.onPick(e.kind === "city" ? { kind: "city", city: e.city } : { kind: "state", index: e.index });
+    opts.onPick(e.kind === "city" ? { kind: "city", city: e.city } : e.kind === "muni" ? { kind: "muni", cell: e.cell } : { kind: "state", index: e.index });
   }
 
   function close() {

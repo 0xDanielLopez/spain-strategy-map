@@ -74,7 +74,7 @@ export function statDefs(nation) {
     ...yields,
     {
       key: "unemployment", label: "Desempleo", name: "Tasa de desempleo", color: "#e8dcc0", iconId: "unemployment", emoji: "😐",
-      unit: "tasa", description: "Parados ÷ población activa.", source: nation?.vintage || "", value: n.unemployment ?? null,
+      unit: "rate", description: "Parados ÷ población activa.", source: nation?.vintage || "", value: n.unemployment ?? null,
     },
   ];
 }

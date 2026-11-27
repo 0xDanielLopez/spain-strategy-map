@@ -9,22 +9,25 @@ export { glyph };
 
 // Whole numbers read as integers, but a real fractional value under 10 keeps 1–2 significant digits so a sparse
 // cell (0.34 people/km²) never shows as "0".
+const dec = (v, d) => v.toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d });
+const whole = (v) => (Math.abs(v) < 1e6 ? Math.round(v).toLocaleString("es-ES") : compact(v));
 const intish = (v) =>
-  Number.isInteger(v) || Math.abs(v) >= 10 ? compact(v) : Math.abs(v) < 1 ? String(+v.toPrecision(1)) : v.toFixed(1);
+  Number.isInteger(v) || Math.abs(v) >= 10 ? whole(v) : Math.abs(v) < 1 ? (+v.toPrecision(1)).toLocaleString("es-ES") : dec(v, 1);
 
 export function formatLensValue(lens, v) {
-  if (v == null || !Number.isFinite(v)) return "no data";
+  if (v == null || !Number.isFinite(v)) return "sin datos";
   switch (lens.format) {
-    case "category": return lens.categories?.[Math.round(v)]?.name ?? "no data";
+    case "category": return lens.categories?.[Math.round(v)]?.name ?? "sin datos";
     case "usd": return "$" + compact(v);
-    case "pct": return (v * 100).toFixed(v < 0.1 ? 1 : 0) + "%";
+    case "eur": return whole(v) + " €";
+    case "pct": return dec(v * 100, Math.abs(v) < 0.1 ? 1 : 0) + " %";
     case "int": return intish(v) + (lens.unit?.startsWith("people") ? " /km²" : lens.unit ? " " + lens.unit : "");
     case "minutes": return v.toFixed(0) + " min";
-    case "years": return v.toFixed(1) + " yrs";
-    case "float": return (v < 10 ? v.toFixed(1) : compact(v)) + (lens.unit ? " " + lens.unit : "");
+    case "years": return dec(v, 1) + " años";
+    case "float": return (v < 10 ? dec(v, 1) : compact(v)) + (lens.unit ? " " + lens.unit : "");
   }
   if (lens.unit?.includes("$")) return "$" + compact(v);
-  return (v < 10 ? v.toFixed(1) : compact(v)) + (lens.unit?.startsWith("people") ? " /km²" : "");
+  return v < 10 ? dec(v, 1) : compact(v);
 }
 
 // A legend tick: the number alone (a long unit such as "adherents per 100 residents" is printed once on the legend's
@@ -37,7 +40,7 @@ export function formatLensTick(lens, t, k = -1) {
     && !(lens.format === "int" && lens.unit.startsWith("people")) ? { ...lens, unit: null } : lens;
   let s = formatLensValue(short, v);
   const zero = Number.isFinite(v) && Math.abs(v) < 1e-9;
-  if (zero) s = s.replace(/^(\$?)0\.0+(?!\d)/, (_, d) => d + "0");
+  if (zero) s = s.replace(/^(\$?)0[.,]0+(?!\d)/, (_, d) => d + "0");
   if (k === 0 && !zero) s = "≤ " + s;
   else if (k === 4) s = "≥ " + s;
   return s;

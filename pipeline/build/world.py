@@ -290,6 +290,34 @@ def hex_lattice(radius: float, step: float) -> list[tuple[float, float]]:
     return out
 
 
+def muni_fractions(cell_counts: dict) -> dict:
+    """Area weights per cell: {cell: [[municipality, fraction], ...]} where fraction = the municipality's lattice
+    points in that cell / its points over all the cells given, so each municipality's fractions sum to 1."""
+    totals: Counter = Counter()
+    for counts in cell_counts.values():
+        totals.update(counts)
+    return {cell: [[m, n / totals[m]] for m, n in sorted(counts.items())] for cell, counts in cell_counts.items()}
+
+
+def ring_area_centroid(ring) -> tuple[float, float, float]:
+    """(abs area, cx, cy) of a closed ring by the shoelace formula; vertex mean when the ring is degenerate."""
+    a = sx = sy = 0.0
+    for (x0, y0), (x1, y1) in zip(ring, ring[1:] + ring[:1]):
+        k = x0 * y1 - x1 * y0
+        a += k
+        sx += (x0 + x1) * k
+        sy += (y0 + y1) * k
+    if abs(a) < 1e-12:
+        n = len(ring)
+        return 0.0, sum(p[0] for p in ring) / n, sum(p[1] for p in ring) / n
+    return abs(a) / 2, sx / (3 * a), sy / (3 * a)
+
+
+def nearest_cell(points: list[tuple[int, float, float]], x: float, y: float) -> int:
+    """Index of the (cell, cx, cy) point closest to (x, y)."""
+    return min(points, key=lambda p: (p[1] - x) ** 2 + (p[2] - y) ** 2)[0]
+
+
 def majority(values: list, centre) -> object:
     """Most common value; ties go to `centre` if it is among the tied, else to the first seen."""
     counts = Counter(values)
@@ -557,6 +585,62 @@ def build() -> None:
             pct[k][i] = round(100 * sum(counts[c] for c in codes) / valid)
     print(f"    {len(lattice)} WorldCover points per hex; {no_cover} Spanish hexes without land-cover samples")
 
+    # --- municipality -> hex area allocation (for the INE lenses) -------------------------------------
+    # The same 1 km lattice as the land cover: each lattice point of a Spanish land hex is located in a municipality
+    # polygon. Points under an inset frame only see the municipalities drawn in an inset, and the others never.
+    muni_inset = [any(proj.ring_region(r) != "main" for r in m["rings"]) for m in munis]
+    cell_counts: dict[int, Counter] = {}
+    land_km2 = [0.0] * grid.size
+    for i in range(grid.size):
+        if owner[i] < 0:
+            continue
+        cx, cy = grid.center(*grid.col_row(i))
+        counts: Counter = Counter()
+        for ox, oy in lattice:
+            x, y = cx + ox, cy + oy
+            k = muni_idx.locate(x, y)
+            if k >= 0 and (proj.frame_at(x, y) is not None) == muni_inset[k]:
+                counts[k] += 1
+        if counts:
+            cell_counts[i] = counts
+            land_km2[i] = sum(counts.values()) * COVER_STEP_KM**2
+    frac = muni_fractions(cell_counts)
+    muni_weights: list[list] = [frac.get(i, []) for i in range(grid.size)]
+    with_weights = {k for parts in muni_weights for k, _ in parts}
+    land_cells = [(i, *grid.center(*grid.col_row(i))) for i in range(grid.size) if owner[i] >= 0]
+    muni_fallback = []
+    for k, m in enumerate(munis):
+        if k in with_weights:
+            continue
+        rings = [proj.project_ring(r) for r in m["rings"]]
+        _, px, py = ring_area_centroid(max(rings, key=lambda r: ring_area_centroid(r)[0]))
+        if not Shape(rings).contains(px, py):
+            px, py = rings[0][0]
+        muni_weights[nearest_cell(land_cells, px, py)].append([k, 1.0])
+        muni_fallback.append(k)
+    sums: Counter = Counter()
+    for parts in muni_weights:
+        for k, f in parts:
+            sums[k] += f
+    worst = max((abs(sums[k] - 1.0) for k in range(len(munis))), default=0.0)
+    missing = [k for k in range(len(munis)) if k not in sums]
+    print(f"    allocation: {len(with_weights)} of {len(munis)} municipalities with area weights, {len(muni_fallback)} fallback to the nearest land hex; "
+          f"fractions sum to 1 within {worst:.1e}; {len(missing)} without any weight")
+    if worst > 1e-9 or missing:
+        raise RuntimeError(f"municipality weights do not sum to 1 (worst {worst:.2e}, {len(missing)} missing)")
+    # A representative hex per municipality for search: the hex whose county it is, else the one with most of it.
+    muni_cell = [-1] * len(munis)
+    for i in range(grid.size):
+        if county[i] >= 0 and muni_cell[county[i]] < 0:
+            muni_cell[county[i]] = i
+    best_w = [0.0] * len(munis)
+    for i, parts in enumerate(muni_weights):
+        for k, f in parts:
+            if muni_cell[k] < 0 and f > best_w[k]:
+                muni_cell[k], best_w[k] = i, f
+    print(f"    {sum(1 for c in muni_cell if c < 0)} municipalities without a representative hex; "
+          f"{round(sum(land_km2)):,} km2 of Spanish land on the lattice")
+
     # --- rivers ----------------------------------------------------------------------------------
     # Lake centerlines are kept only where they cross land hexes (reservoirs narrower than half a hex),
     # so rivers don't stop in the middle of land; over water hexes they go. Points under an inset frame are dropped.
@@ -629,6 +713,7 @@ def build() -> None:
             "tables": tables,
             "states": states_out,
             "counties": [{"geoid": m["code"], "name": m["name"], "province": m["province"]} for m in munis],
+            "muni_cell": muni_cell,
             "forced": forced,
             "rivers": rivers,
         },
@@ -646,5 +731,8 @@ def build() -> None:
             "water": water,
             "cover": cover,
             "pct": pct,
+            "muni_weights": muni_weights,
+            "muni_fallback": muni_fallback,
+            "land_km2": land_km2,
         },
     )

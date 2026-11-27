@@ -1,7 +1,7 @@
 # Spain Strategy Map
 
-España dibujada como un mapa de estrategia 4X: terreno en hexágonos, relieve y cobertura del suelo, todo a partir de
-datos públicos.
+España dibujada como un mapa de estrategia 4X: terreno en hexágonos, relieve, cobertura del suelo y lentes con datos
+del INE por municipio, todo a partir de datos públicos.
 
 **Mapa en vivo: https://0xdaniellopez.github.io/spain-strategy-map/**
 
@@ -11,7 +11,7 @@ EE. UU. por datos abiertos de España y de Europa.
 
 ## Estado
 
-Fase F0: solo el mapa base.
+Fases F0 (mapa base) y F1 (lentes del INE).
 
 - Hexágonos de 10 km de radio (unos 260 km2 cada uno, unos 1.950 de tierra en España).
 - Tierra y agua, relieve (llano, colinas, montañas, picos) y cobertura del suelo en cada hexágono.
@@ -20,14 +20,31 @@ Fase F0: solo el mapa base.
 - Ceuta, Melilla y las islas pequeñas tienen al menos un hexágono cada una. Es una excepción cartográfica: un
   hexágono es mucho más grande que Ceuta o Melilla.
 
-Todavía no hay estadísticas, ciudades, lentes ni recursos.
+- 12 lentes: densidad, crecimiento 2021-2026, edad media, mayores de 65 años, nacionalidad extranjera, tamaño del
+  hogar, renta neta por persona, población bajo el 60 % de la mediana, estudios superiores, arbolado, cultivos y
+  construido.
+- Buscador de comunidades y de los 8.132 municipios.
+
+Todavía no hay ciudades, recursos ni estadísticas por comunidad.
+
+### Cómo se reparten los datos municipales
+
+Cada municipio se reparte entre los hexágonos que toca según su superficie: cuento los puntos de una retícula de 1 km
+de cada hexágono que caen en cada municipio. Así la población total de los hexágonos es igual a la de los municipios.
+Esto supone que la población está repartida por igual dentro del término municipal, así que un municipio grande con
+la ciudad en un extremo reparte su población también por el campo.
+
+Las tasas y las medias de un hexágono salen de sumar numeradores y denominadores de sus municipios: la edad media se
+pondera por habitantes, el tamaño del hogar por hogares y los estudios por la población de 15 años o más. Un hexágono
+sale sin dato si los municipios con dato tienen menos del 90 % de su población. Por eso la pobreza y los estudios
+superiores salen sin dato en muchas zonas rurales: el INE no publica esos datos en muchos municipios pequeños.
 
 ## Cómo ejecutarlo
 
 Necesitas Python 3.11 o superior y [uv](https://docs.astral.sh/uv/). El pipeline usa solo la biblioteca estándar.
 
 ```bash
-uv run python -m pipeline all       # descarga, procesa, construye y comprueba (la primera vez baja unos 200 MB)
+uv run python -m pipeline all       # descarga, procesa, construye y comprueba (la primera vez baja unos 2,9 GB)
 uv run python -m pipeline serve     # abre http://127.0.0.1:8765
 ```
 
@@ -42,12 +59,16 @@ uv run python -m pipeline serve     # abre http://127.0.0.1:8765
 | [ESA WorldCover 10 m 2021 v200](https://esa-worldcover.org/) | Agencia Espacial Europea | CC BY 4.0. © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium. Zanaga et al. 2022, doi:10.5281/zenodo.7254221 | Cobertura del suelo de cada hexágono |
 | [ETOPO1](https://www.ncei.noaa.gov/products/etopo-global-relief-model) vía NOAA ERDDAP | NOAA NCEI | Dominio público | Relieve, profundidad del mar |
 | [Natural Earth 1:50m](https://www.naturalearthdata.com/) | Natural Earth | Dominio público | Países vecinos, lagos, ríos |
+| [INE](https://www.ine.es): Censo anual de población (tabla 73027), Atlas de distribución de renta de los hogares (30824, 30829, 30832), nivel de estudios (66620) | Instituto Nacional de Estadística | Reutilización permitida citando la fuente | Lentes por municipio |
 
 El mapa muestra la línea de atribución en una esquina, como piden las condiciones de GISCO. El pipeline guarda la URL,
 el sha256, el tamaño y la fecha de cada fichero descargado en `web/data/sources.json`, y `web/data/world.json` lleva
 la fuente y la licencia de cada campo.
 
 La tabla de provincias a comunidades autónomas la escribí a mano a partir de los códigos del INE.
+
+Datos del INE: elaboración propia con datos extraídos del sitio web del INE: www.ine.es. El INE no participa,
+patrocina ni apoya este proyecto.
 
 ### Qué significa la cobertura del suelo
 

@@ -30,12 +30,13 @@ export function fmtValue(format, v, unit) {
     case "int": case "count": return Math.abs(v) >= 1e6 ? count3(v) : int(v);
     case "usd": return Math.abs(v) >= 1e6 ? money(v) : dollars(v);
     case "money": return money(v);
+    case "eur": return dollars(v);
     case "pct": return pct(v);
     case "signed": return signedPct(v);
     case "lq": return `×${v.toFixed(2)}`;
     case "ratio": return `×${v.toFixed(1)}`;
     case "minutes": return `${v.toFixed(1)} min`;
-    case "years": return `${v.toFixed(1)} yrs`;
+    case "years": return `${v.toFixed(1)} años`;
     case "km2": return `${int(v)} km²`;
     case "mw": return mw(v);
     case "float": return Math.abs(v) >= 100 ? int(v) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
@@ -54,6 +55,7 @@ export function fmtCell(format, v, unit) {
     case "int": case "count": return a >= 1e4 ? count3(v) : int(v);
     case "usd": return a >= 1e4 ? `$${count3(v)}` : dollars(v);
     case "money": return money(v);
+    case "eur": return a >= 1e4 ? `${count3(v)} €` : dollars(v);
     case "km2": return a >= 1e5 ? `${count3(v)} km²` : `${int(v)} km²`;
     case "float": return a >= 1e4 ? count3(v) : fmtValue(format, v, unit);
     default: return fmtValue(format, v, unit);
@@ -64,7 +66,7 @@ export function fmtCell(format, v, unit) {
 export function fmtShort(format, v) {
   if (!fin(v)) return "–";
   switch (format) {
-    case "usd": case "money": return money(v);
+    case "usd": case "money": case "eur": return money(v);
     case "pct": return `${+(v * 100).toFixed(Math.abs(v) < 0.1 && v !== 0 ? 1 : 0)}%`;
     case "signed": return `${v > 0 ? "+" : v < 0 ? "−" : ""}${+Math.abs(v * 100).toFixed(1)}%`;
     case "lq": case "ratio": return `×${+v.toFixed(1)}`;

@@ -32,6 +32,13 @@ from .core.paths import INTERIM, WEB_DATA
 REQUIRED = ["world.json", "cities.json", "nation.json", "sources.json"]
 OPTIONAL = ["states.json", "lenses.json", "resources.json", "counties.json"]
 N_CCAA = 19
+LENS_FORMATS = {"int", "eur", "pct", "float", "minutes", "years", "category"}
+LENS_SCALES = {"linear", "log"}
+HIGHER_IS = {"good", "bad", "neutral"}
+NATION_TOLERANCE = 0.005  # people on the hexes vs the municipal total
+# Per-CCAA is only a sanity bound: a hex belongs to its majority CCAA but a border municipality's people are split by
+# area across hexes of several CCAA, so small CCAA drift by design (measured worst 16 % for Navarra).
+CCAA_TOLERANCE = 0.25
 
 WATER_IDS = range(0, 4)
 RELIEF_IDS = range(0, 4)
@@ -304,6 +311,85 @@ def check_nation(r: Report, nat) -> None:
         r.ok(f"nation.json: {nat['nation']['name']} ({nat['vintage']})")
 
 
+# ---------------------------------------------------------------- lenses
+
+
+def check_lenses(r: Report, doc, ctx: dict | None, source_ids: set | None = None) -> None:
+    if not need_keys(r, "lenses.json", doc, ["vintage", "groups", "lenses"]):
+        return
+    fails_before = r.count("FAIL")
+    groups = {g.get("id") for g in doc["groups"] if isinstance(g, dict) and "name" in g}
+    if len(groups) != len(doc["groups"]):
+        r.fail("lenses.json groups: every group needs id and name")
+    ids = Counter(l.get("id") for l in doc["lenses"] if isinstance(l, dict))
+    if any(k > 1 for k in ids.values()):
+        r.fail(f"lenses.json: duplicate lens ids {[i for i, k in ids.items() if k > 1]}")
+    keys = ["id", "group", "name", "icon", "emoji", "unit", "format", "scale", "domain", "ramp", "higher_is", "source", "description", "values"]
+    spanish = sum(1 for o in ctx["owner"] if o >= 0) if ctx and ctx["owner"] else 0
+    for lens in doc["lenses"]:
+        what = f"lenses.json {lens.get('id') if isinstance(lens, dict) else lens!r}"
+        if not need_keys(r, what, lens, keys):
+            continue
+        if lens["group"] not in groups:
+            r.fail(f"{what}: unknown group {lens['group']!r}")
+        if lens["format"] not in LENS_FORMATS or lens["scale"] not in LENS_SCALES or lens["higher_is"] not in HIGHER_IS:
+            r.fail(f"{what}: format/scale/higher_is must be one of {sorted(LENS_FORMATS)}/{sorted(LENS_SCALES)}/{sorted(HIGHER_IS)}")
+        d = lens["domain"]
+        if not (isinstance(d, list) and len(d) == 2 and all(is_num(v) for v in d) and d[0] < d[1]) or (lens["scale"] == "log" and d[0] <= 0):
+            r.fail(f"{what}: domain must be [lo, hi] with lo < hi (lo > 0 for log): {d!r}")
+        if not (isinstance(lens["ramp"], list) and len(lens["ramp"]) >= 2 and all(COLOR.match(str(c)) for c in lens["ramp"])):
+            r.fail(f"{what}: ramp must be at least 2 #hex colours")
+        if source_ids is not None and lens["source"] not in source_ids:
+            r.warn(f"{what}: source {lens['source']!r} is not in sources.json")
+        if "note" in lens and not (lens["note"] is None or isinstance(lens["note"], str)):
+            r.fail(f"{what}: note must be a string or null")
+        vals = lens["values"]
+        if ctx is None:
+            continue
+        if not isinstance(vals, list) or len(vals) != ctx["n"]:
+            r.fail(f"{what}: values must have {ctx['n']} entries, got {len(vals) if isinstance(vals, list) else type(vals).__name__}")
+            continue
+        bad = [i for i, v in enumerate(vals) if v is not None and not is_num(v)]
+        if bad:
+            r.fail(f"{what}: {len(bad)} values are neither number nor null (cells {_sample(bad)})")
+        if ctx["owner"]:
+            off = [i for i, v in enumerate(vals) if v is not None and ctx["owner"][i] < 0]
+            if off:
+                r.fail(f"{what}: {len(off)} values on non-Spanish cells (must be null)")
+        if lens["format"] == "pct" and lens["id"] != "growth" and any(is_num(v) and not -1e-9 <= v <= 1 + 1e-9 for v in vals):
+            r.fail(f"{what}: format pct but some values are outside 0..1 (pct lenses are fractions)")
+        if lens["id"] == "growth" and any(is_num(v) and v < -1 for v in vals):
+            r.fail(f"{what}: growth below -100 %")
+        filled = sum(1 for v in vals if v is not None)
+        r.note(f"lens {lens['id']}: {filled} non-null hexes ({filled / spanish:.1%} of {spanish} Spanish land hexes)" if spanish else f"lens {lens['id']}: {filled} non-null hexes")
+    if r.count("FAIL") == fails_before:
+        r.ok(f"lenses.json: {len(doc['lenses'])} lenses in {len(groups)} groups ({doc['vintage']})")
+
+
+def check_conservation(r: Report, interim_dir: Path, nation=None) -> None:
+    """People on the hexes (written by the lenses builder as _lens_stats) against the municipal totals."""
+    p = Path(interim_dir) / "_lens_stats.json"
+    if not p.exists():
+        r.note("_lens_stats: missing (lenses not built), population conservation not checked")
+        return
+    st = json.loads(p.read_text())["data"]
+    total, hexes = st["muni_pop"], st["hex_pop"]
+    dev = abs(hexes - total) / total if total else 1.0
+    (r.ok if dev <= NATION_TOLERANCE else r.fail)(f"population conservation: hexes {hexes:,.0f} vs municipalities {total:,.0f} ({dev:.3%}, limit {NATION_TOLERANCE:.1%})")
+    bad, worst = [], ("", 0.0)
+    for code, c in sorted(st["per_ccaa"].items()):
+        d = abs(c["hex_pop"] - c["muni_pop"]) / c["muni_pop"] if c["muni_pop"] else (0.0 if not c["hex_pop"] else 1.0)
+        if d > worst[1]:
+            worst = (code, d)
+        if d > CCAA_TOLERANCE:
+            bad.append(f"{code} {d:.2%}")
+    (r.fail if bad else r.ok)(f"population per CCAA within {CCAA_TOLERANCE:.0%}" + (f": {', '.join(bad)}" if bad else f" ({len(st['per_ccaa'])} CCAA)"))
+    r.note(f"worst CCAA population drift: {worst[0]} {worst[1]:.2%} (border municipalities split by area)")
+    npop = (nation or {}).get("nation", {}).get("population") if isinstance(nation, dict) else None
+    if npop is not None and abs(npop - total) > 0.5:
+        r.fail(f"nation.json population {npop:,} differs from the municipal total {total:,.0f}")
+
+
 # ---------------------------------------------------------------- data quality
 
 
@@ -421,12 +507,17 @@ def run(web_dir: Path = WEB_DATA, interim_dir: Path = INTERIM, quiet: bool = Fal
     docs = {name: _load(r, web_dir, name, True) for name in REQUIRED}
     docs.update({name: _load(r, web_dir, name, False) for name in OPTIONAL})
     ctx = check_world(r, docs["world.json"]) if docs["world.json"] is not None else None
+    source_ids = None
     if docs["sources.json"] is not None:
-        check_sources(r, docs["sources.json"])
+        source_ids = check_sources(r, docs["sources.json"])
     if docs["nation.json"] is not None:
         check_nation(r, docs["nation.json"])
     if docs["cities.json"] is not None:
         check_cities(r, docs["cities.json"])
+
+    if docs.get("lenses.json") is not None:
+        check_lenses(r, docs["lenses.json"], ctx, source_ids)
+        check_conservation(r, interim_dir, docs.get("nation.json"))
 
     r.section("data quality")
     if ctx is None:

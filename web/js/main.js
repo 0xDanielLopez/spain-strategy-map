@@ -671,8 +671,14 @@ async function main() {
   const search = initSearch({
     cities,
     states: w.raw.states.map((s, i) => ({ name: states?.[i]?.name || s.name, abbr: s.abbr, population: states?.[i]?.population })),
+    munis: (w.raw.counties || []).map((c, k) => {
+      const cell = w.raw.muni_cell?.[k] ?? -1;
+      const st = cell >= 0 ? w.raw.owner[cell] : -1;
+      return { name: c.name, ccaa: states?.[st]?.name || w.raw.states[st]?.name || "", cell };
+    }),
     onPick(r) {
       if (r.kind === "city") selectCity(r.city, { fly: true });
+      else if (r.kind === "muni") focusCity({ cell: r.cell });
       else selectState(r.index, { fly: true });
     },
   });

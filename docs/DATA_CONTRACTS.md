@@ -204,7 +204,31 @@ Also, per state:
 
 ## lenses.json
 
-Produced by `pipeline/build/lenses.py`.
+**Spain (F1, current).** Produced by `pipeline/build/lenses.py` (REQUIRES `_world`, `ine`, `gisco_lau`; also writes the
+interim `_lens_stats` with the population totals that `check` uses for the conservation test). Top level:
+`{"vintage", "attribution": [{data, source, license}], "groups", "lenses"}`; all texts are Spanish. Groups: `people`
+(Población), `prosperity` (Prosperidad), `knowledge` (Conocimiento), `land` (Territorio). Lens `format` is one of
+`int|eur|pct|float|minutes|years|category`; `eur` = euros (es-ES). `pct` values are 0..1 fractions (`growth` may be
+negative). Lens ids: `density` (hab./km², log), `growth` (2021-2026), `age`, `elderly`, `foreign`, `household`,
+`income` (eur), `poverty` (higher_is bad), `higher_education`, and the land lenses `forest`, `farmland`, `developed`
+(world.json `pct`). There is no Gini lens: a mean of Ginis is not a Gini. `values[i]` is null on non-Spanish cells.
+
+*Allocation by area.* world.py samples every Spanish land hex on the 1 km lattice used for land cover and locates each
+point in a municipality (points under an inset frame only see the municipalities drawn in an inset). Interim `_world`
+gets `muni_weights` (per cell: `[[municipality index, fraction]]`, fraction = its points in the cell / its points in all
+Spanish land hexes, so each municipality sums to 1), `muni_fallback` (municipalities with no lattice point in a land hex:
+all of it goes to the nearest land hex to an interior point) and `land_km2` (per cell, lattice points on Spanish
+municipalities x 1 km2; fallback municipalities add no area). world.json gets `muni_cell` (aligned with `counties`: the
+hex whose `county` is the municipality, else the hex holding most of it, never -1) for the search box.
+
+*Hex values.* `hex_pop = sum f*P` (P = Censo anual 2026). `density = hex_pop / land_km2`. The other INE lenses are a
+ratio of weighted sums over the municipalities with a value: `age`, `elderly`, `foreign` (1 - Spanish share), `income`,
+`poverty` weighted by people; `household` by households (people / size); `higher_education` = higher_ed / pop15; `growth`
+= sum f*P2026 / sum f*P2021 - 1 over municipalities with both. A hex is null unless those municipalities hold at least
+`COVERAGE_MIN` = 90 % of its `hex_pop`. `domain` = [p2, p98] of the non-null hex values.
+
+*Inherited from the US map* (kept below for reference; the sections that name US data do not apply to Spain).
+
 
 ```jsonc
 {
@@ -298,6 +322,10 @@ present there. `value` is the sum of the items' `value` (nulls skipped), or `nul
 additive: oil and gas items each carry their whole play's area, so summing them is meaningless.
 
 ## counties.json
+
+**Spain: not produced (F1).** The municipality explorer (`ext/advisors/core/data.js`, `views/*`) hard-codes US columns and
+labels (`state`, `cbsa`, `median_age`, `home_value`, English group names, `selectState(row.v.state)`), so a Spanish
+column set would need explorer changes. The municipality search uses world.json `counties` + `muni_cell` instead.
 
 One row per county on the map (the lower 48 + DC, world.json `counties` order), **column-oriented**:
 
