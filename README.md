@@ -2,6 +2,8 @@
 
 Spain drawn as a 4X strategy-game map: hex terrain, relief and land cover, all from public data.
 
+**Live map: https://0xdaniellopez.github.io/spain-strategy-map/**
+
 This project is a fork of [usaciv](https://karpathy.ai/usaciv/) by Andrej Karpathy (MIT licence), which draws the
 United States in the same way. I keep his pipeline, hex grid and map art, and I replace the US data with Spanish and
 European open data.
