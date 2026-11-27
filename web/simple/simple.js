@@ -433,12 +433,16 @@ function go(o) {
   const h = hashFor(o);
   if (h === location.hash || (!h && !location.hash)) route(); else location.hash = h;
 }
+// The front page (./) opens the municipality on its own map: #m=<code>&i=<indicator>.
+const homeHash = (code) => (code ? '#m=' + encodeURIComponent(code) + '&i=' + encodeURIComponent(state.key) : '');
 function replaceHash(o) { history.replaceState(null, '', location.pathname + location.search + hashFor(o)); }
 
 function route() {
   const h = parseHash();
   if (current) { current.destroy(); current = null; }
   if (h.i && IND_BY[h.i]) state.key = h.i;
+  const wl = document.getElementById('wordlink');
+  if (wl) wl.setAttribute('href', './' + homeHash(h.m && IDX[h.m] != null ? h.m : null));
   const root = document.getElementById('app');
   root.innerHTML = '';
   window.scrollTo(0, 0);
@@ -731,7 +735,7 @@ function showCard(root, code) {
   const sameProv = []; for (let i = 0; i < N; i++) if (ROWS[i][2] === row[2]) sameProv.push(i);
   const sim = similarTo(code), EXTRA = IND.filter((i) => !MEASURES.includes(i.key)).length;
   root.innerHTML = `
-    <p class="back-wrap"><a class="back" href="${hashFor({ i: state.key, h: code }) || '#'}">← Ver el mapa de España</a></p>
+    <p class="back-wrap"><a class="back" href="./${homeHash(code)}">← Ver el mapa de España</a></p>
     <header class="card-head">
       <p class="eyebrow">Tu municipio</p>
       <h1 class="name">${esc(name)}</h1>
@@ -765,7 +769,7 @@ function showCard(root, code) {
         <p class="note muted" id="copymsg" role="status"></p>
       </section>
     </div>
-    <p class="back-wrap"><a class="back" href="${hashFor({ i: state.key, h: code }) || '#'}">← Ver el mapa de España</a></p>`;
+    <p class="back-wrap"><a class="back" href="./${homeHash(code)}">← Ver el mapa de España</a></p>`;
   const $ = (id) => root.querySelector('#' + id);
   $('more').addEventListener('click', () => {
     const open = $('extra').hidden; $('extra').hidden = !open;

@@ -5,15 +5,18 @@ del INE por municipio y las 68 áreas urbanas funcionales como ciudades, todo a 
 
 **En vivo: https://0xdaniellopez.github.io/spain-strategy-map/**
 
-El sitio tiene dos formas de ver los mismos datos:
+El sitio tiene tres páginas sobre los mismos datos:
 
-- **Portada, vista simple** (`web/index.html` y `web/simple/`): un mapa con los límites reales de los 8.132 municipios,
-  una frase que lo resume, las provincias con más y con menos, y una ficha por municipio (14 indicadores, evolución de
-  la renta desde 2015, municipios parecidos). El fichero `web/data/simple.json` lo genera
-  `uv run python -m pipeline build simple`.
+- **Portada** (`web/index.html` y `web/home/`): un mapa a pantalla completa con los límites reales de los 8.132
+  municipios, las ciudades con su cifra, una barra para cambiar de dato (14 indicadores), un panel que se abre al tocar
+  un municipio y capas sobre el mapa (trenes de Renfe en directo, aeropuertos, puertos y Patrimonio Mundial).
+- **Ficha de municipio** ([municipio.html](https://0xdaniellopez.github.io/spain-strategy-map/municipio.html#m=41091)):
+  todos los indicadores de un municipio con su referencia, la evolución de la renta desde 2015 y municipios parecidos.
 - **Mapa de estrategia** ([estrategia.html](https://0xdaniellopez.github.io/spain-strategy-map/estrategia.html)): el
   mapa de hexágonos con ciudades, capas, años, comparador, mapas de ciudad y datos en directo. Los enlaces antiguos a la
   raíz (`?scope=sevilla`, `#lens=...`) redirigen a esta página.
+
+La portada y la ficha leen `web/data/simple.json`, que genera `uv run python -m pipeline build simple`.
 
 Este proyecto es un fork de [usaciv](https://karpathy.ai/usaciv/), de Andrej Karpathy (licencia MIT), que dibuja
 Estados Unidos de la misma forma. Mantengo su pipeline, su rejilla hexagonal y el arte del mapa, y cambio los datos de

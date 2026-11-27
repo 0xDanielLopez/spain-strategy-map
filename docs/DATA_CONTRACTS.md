@@ -309,7 +309,7 @@ each year, not adjusted for inflation, and each municipality is spread over its 
 ### simple.json
 
 Data of the simple interface (`web/simple/`): a map of municipal boundaries and a card per municipality. Produced by
-`pipeline/build/simple.py` (REQUIRES `gisco_lau`, `ine_series`, `counties.json`, `projection.json`, `states.json`); run
+`pipeline/build/simple.py` (REQUIRES `gisco_lau`, `ine_series`, `counties.json`, `projection.json`, `states.json`, `infrastructure.json`, `wonders.json`); run
 `uv run python -m pipeline build simple`. Under 3.0 MB (`check` fails above). Percentages are 0-100, income is an integer in
 euros, `null` is "sin dato" and is never 0. Codes: municipality = 5-digit INE string, province = 2 digits, ccaa = 2 digits.
 
@@ -414,6 +414,14 @@ a `check(web_dir)` (see Pipeline conventions). Shared rules:
   and the Almanac can quote them.
 * **Loading** (browser): `infrastructure`, `military`, `wonders`, `trade` load eagerly right after the first frame (keep
   each **under ~300 kB**); `citizens`, `districts`, `disasters` load on demand with `app.loadData(name)`.
+- `shapes.from_world`: `{"s", "dx", "dy"}`; `X = s*x + dx`, `Y = s*y + dy` turns the world coordinates used across `web/data` into the
+  box of `shapes.munis`. One affine covers every municipality, Canarias included (the inset is part of the world
+  coordinates), so there is no `from_world_canarias`. `check` verifies six municipalities land within 3 units of `munis_centroid`.
+- `points`: `{"airports": [{"name", "city", "x", "y"}], "ports": [{"name", "x", "y"}], "heritage": [{"name", "x", "y"}]}`, `x`, `y`
+  already in box coordinates (one decimal). Airports (42) lose the word "Aeropuerto de"; ports (30); heritage = the 48 Patrimonio
+  Mundial items of `wonders.json` (national parks excluded).
+- `meta.points_sources`: Spanish attribution for the three point sets (OurAirports, Natural Earth, Wikidata).
+
 
 ### citizens.json (lazy)
 

@@ -14,29 +14,36 @@
   <meta name="description" content="Mapa de España con los límites reales de los municipios: renta, edad, población y más. Busca tu municipio y compáralo con el resto.">
   <meta name="color-scheme" content="light">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='31' fill='%23120d06'/%3E%3Ccircle cx='32' cy='32' r='29' fill='%23c9a45c'/%3E%3Ccircle cx='32' cy='32' r='24' fill='%232a4d8f'/%3E%3Cpath fill='%23f8f0d8' d='M32 14l4.9 11.3 12.2 1.1-9.3 8.1 2.8 12-10.6-6.4-10.6 6.4 2.8-12-9.3-8.1 12.2-1.1z'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="simple/simple.css?v=2">
+  <link rel="stylesheet" href="home/home.css?v=2">
+  <script type="module" src="home/home.js?v=2"></script>
 </head>
 <body>
-  <a class="skip" href="#app">Saltar al contenido</a>
-  <header class="top">
-    <div class="top-in">
-      <a class="word" href="#">España, municipio a municipio</a>
-      <a class="other" href="estrategia.html">Mapa de estrategia</a>
-      <div class="search" role="search">
-        <label class="sr" for="q">Busca tu municipio</label>
-        <span class="search-ico" aria-hidden="true">🔎</span>
-        <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="Busca tu municipio" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="q-list">
-        <ul id="q-list" class="suggest" role="listbox" aria-label="Municipios encontrados" hidden></ul>
-      </div>
-    </div>
-  </header>
-  <main id="app" class="wrap"><p class="loading">Cargando los datos…</p></main>
-  <footer class="foot wrap">
-    <ul>
-      <li>Fuentes: <span id="foot-src"></span></li>
-      <li>Los datos son por municipio. Las comparaciones «de cada 10 municipios» cuentan municipios, no personas.</li>
-    </ul>
-  </footer>
-  <script type="module" src="simple/simple.js?v=2"></script>
+<header class="top">
+<a class="word" href="./">España, municipio a municipio</a>
+<div class="search"><span class="search-ico" aria-hidden="true">🔎</span><input id="q" type="search" placeholder="Busca tu municipio" autocomplete="off" aria-label="Busca tu municipio"><ul class="suggest" id="q-list" hidden></ul></div>
+<div class="nat" id="nat"></div>
+<div class="more"><button class="btn" id="moreb" aria-expanded="false" aria-controls="moremenu">Más ▾</button></div>
+</header>
+<nav class="menu" id="moremenu" aria-label="Más páginas" hidden>
+<a href="estrategia.html?scope=sevilla">Mapas de ciudad (Sevilla)</a>
+<a href="estrategia.html#advisor=compare">Comparar municipios</a>
+<a href="estrategia.html#advisor=transparency">Transparencia</a>
+<a href="estrategia.html">Mapa de estrategia</a>
+</nav>
+<main class="map" id="map">
+<canvas class="cv" id="cv" aria-hidden="true"></canvas><canvas class="cv" id="cvt" role="img" aria-label="Mapa de España por municipios"></canvas>
+<div class="ov" id="ov"></div>
+<div class="tip" id="tip" hidden></div>
+<button class="btn fl" id="layers" aria-expanded="false" hidden>Capas ▾</button>
+<div class="menu" id="lmenu" hidden></div>
+<div class="fl" id="note" hidden></div>
+<div class="zoom fl"><button data-z="in" aria-label="Acercar">+</button><button data-z="out" aria-label="Alejar">−</button><button data-z="reset" aria-label="Toda España" title="Toda España" style="font-size:13px">⤢</button></div>
+<div class="dock">
+<div class="lrow"><div class="yr" id="yr" hidden><button id="play" aria-label="Reproducir los años">▶</button><input type="range" id="yrr" min="0" max="9" step="1" value="9" aria-label="Año"><b id="yrbig">2024</b></div><ul class="legend" id="legend"></ul></div>
+<div class="bar" id="bar"></div>
+</div>
+<aside class="panel" id="panel"><button class="p-head" id="phead"><span id="ptitle">España de un vistazo</span><span id="pcar">▴</span></button><div class="p-body" id="pbody"></div><p class="attr" id="attr"></p></aside>
+</main>
+<div class="menu" id="mmenu" hidden></div>
 </body>
 </html>

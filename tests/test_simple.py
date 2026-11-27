@@ -97,3 +97,15 @@ class Findings(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Points(unittest.TestCase):
+    def test_world_to_box(self):
+        tf = {"s": 0.5, "dx": -10.0, "dy": 4.0}
+        self.assertEqual(simple.world_to_box(100, 20, tf), (40.0, 14.0))
+
+    def test_airport_names_are_shortened(self):
+        self.assertEqual(simple.short_airport_name("Aeropuerto Adolfo Suárez Madrid-Barajas"), "Adolfo Suárez Madrid-Barajas")
+        self.assertEqual(simple.short_airport_name("Aeropuerto de Málaga-Costa del Sol"), "Málaga-Costa del Sol")
+        self.assertEqual(simple.short_airport_name("Aeropuerto de La Palma"), "La Palma")
+        self.assertEqual(simple.short_airport_name("Reus"), "Reus")

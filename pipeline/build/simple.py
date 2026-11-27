@@ -18,7 +18,8 @@ import statistics
 from ..core.geo import MapProjection
 from ..core.store import WEB_DATA, load_interim, load_interim_payload, write_web
 
-REQUIRES = ["gisco_lau", "ine_series", "counties.json", "projection.json", "states.json"]
+REQUIRES = ["gisco_lau", "ine_series", "counties.json", "projection.json", "states.json", "infrastructure.json",
+            "wonders.json"]
 PRODUCES = ["simple.json"]
 
 MAX_BYTES = 3_000_000
@@ -235,6 +236,31 @@ def income_findings(provinces: list[dict], nation_income: float, munis: list[tup
     ]
 
 
+def world_to_box(x: float, y: float, tf: dict) -> tuple[float, float]:
+    """Map world coordinates (the x, y used across web/data) into the municipal box: X = s*x + dx, Y = s*y + dy."""
+    return tf["s"] * x + tf["dx"], tf["s"] * y + tf["dy"]
+
+
+def short_airport_name(name: str) -> str:
+    """Airport name without the leading "Aeropuerto de/del/de la" (or plain "Aeropuerto")."""
+    return re.sub(r"^Aeropuerto\s+(?:del\s+|de\s+)?", "", name.strip(), flags=re.I).strip() or name.strip()
+
+
+def build_points(tf: dict) -> dict:
+    """Airports, ports and World Heritage items as {name, x, y} in box coordinates (one decimal)."""
+    infra = json.loads((WEB_DATA / "infrastructure.json").read_text(encoding="utf-8"))
+    wonders = json.loads((WEB_DATA / "wonders.json").read_text(encoding="utf-8"))
+
+    def at(o: dict) -> dict:
+        x, y = world_to_box(o["x"], o["y"], tf)
+        return {"x": round(x, 1), "y": round(y, 1)}
+
+    airports = [{"name": short_airport_name(a["name"]), "city": a.get("city")} | at(a) for a in infra["airports"]]
+    ports = [{"name": q["name"]} | at(q) for q in infra["ports"]]
+    heritage = [{"name": w["name"]} | at(w) for w in wonders["wonders"] if w.get("rule") == "patrimonio_mundial"]
+    return {"airports": airports, "ports": ports, "heritage": heritage}
+
+
 def build() -> None:
     counties = json.loads((WEB_DATA / "counties.json").read_text(encoding="utf-8"))
     ci = {k: i for i, k in enumerate(counties["columns"])}
@@ -338,6 +364,10 @@ def build() -> None:
             ys += nums[1::2]
         bbox[p] = [min(xs), min(ys), max(xs), max(ys)]
 
+    # One affine for every municipality (Canarias included: the inset is already part of the world coordinates).
+    from_world = {"s": round(scale, 9), "dx": round(-x0 * scale, 6), "dy": round(-y0 * scale, 6)}
+    points = build_points(from_world)
+
     # Findings: latitude of each municipality = centroid of its biggest ring in lon/lat.
     lat = {}
     for g in gis:
@@ -349,13 +379,15 @@ def build() -> None:
     vintage = load_interim_payload("ine_series")["vintage"]
     doc = {
         "meta": {"sources": SOURCES,
+                 "points_sources": "Aeropuertos: OurAirports (dominio público). Puertos: Natural Earth (dominio público). "
+                                   "Patrimonio Mundial: Wikidata (CC0).",
                  "years": {"income": 2024, "population": 2026, "series": [2015, 2024]},
                  "shapes_note": "Mapa de España con Canarias en un recuadro.",
                  "built": "Renta de 2024, población de 2026. " + vintage + "."},
         "indicators": [dict(key=a, label=b, unit=u, format=f, year=y, source=s, higher_is=h, icon=e)
                        for a, b, u, f, y, s, h, e in INDICATORS],
         "munis": {"cols": COLS, "rows": rows}, "provinces": provinces, "nation": nation, "series": ser,
-        "shapes": {"w": MAP_W, "h": height, "munis": shapes}, "provinces_bbox": bbox, "munis_centroid": centroid,
+        "shapes": {"w": MAP_W, "h": height, "munis": shapes, "from_world": from_world}, "points": points, "provinces_bbox": bbox, "munis_centroid": centroid,
         "findings": findings,
     }
     size = len(json.dumps(doc, separators=(",", ":"), ensure_ascii=False).encode())

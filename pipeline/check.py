@@ -1149,6 +1149,54 @@ def check_simple(r: Report, web_dir: Path) -> None:
     names = [row[1] for row in rows if tail.search(row[1])]
     (r.ok if not names else r.fail)("simple.json: no name ends with an article" + (f" (e.g. {names[:3]})" if names else ""))
 
+    _check_simple_points(r, web_dir, doc)
+
+
+def _check_simple_points(r: Report, web_dir: Path, doc: dict) -> None:
+    """simple.json points: from_world lands six known municipalities within 3 box units of their centroid, every point
+    lies in the box, counts match the source files, Madrid and Barcelona have their airport and port close by."""
+    sh = doc.get("shapes") or {}
+    tf, pts, cen = sh.get("from_world"), doc.get("points") or {}, doc.get("munis_centroid") or {}
+    if not (tf and pts and cen):
+        r.fail("simple.json: from_world, points and munis_centroid are present")
+        return
+    w, h = sh.get("w", 1000), sh.get("h", 0)
+    off = [(k, p["name"]) for k, v in pts.items() for p in v
+           if not (isinstance(p.get("x"), (int, float)) and isinstance(p.get("y"), (int, float))
+                   and 0 <= p["x"] <= w and 0 <= p["y"] <= h)]
+    (r.ok if not off else r.fail)("simple.json: every point lies inside the box" + (f" (outside: {off[:3]})" if off else ""))
+    infra, wonders = _load(r, web_dir, "infrastructure.json", False), _load(r, web_dir, "wonders.json", False)
+    if infra and wonders:
+        want = {"airports": len(infra["airports"]), "ports": len(infra["ports"]),
+                "heritage": sum(1 for x in wonders["wonders"] if x.get("rule") == "patrimonio_mundial")}
+        got = {k: len(pts.get(k) or []) for k in want}
+        (r.ok if got == want else r.fail)(f"simple.json: point counts {got} match the source files {want}")
+
+    def dist(a, b):
+        return math.hypot(a[0] - b[0], a[1] - b[1])
+
+    interim = Path(__file__).resolve().parents[1] / "data" / "interim" / "gisco_lau.json"
+    proj = _load(r, web_dir, "projection.json", False)
+    if interim.exists() and proj:
+        from .build.simple import ring_area, ring_centroid
+        mp = MapProjection(proj["min_x"], proj["max_y"], proj["margin"])
+        gis = {g["code"]: g for g in json.loads(interim.read_text())["data"]["municipalities"]}
+        bad = []
+        for code in ("28079", "41091", "08019", "35016", "38038", "07040"):
+            ring = max(gis[code]["rings"], key=lambda q: ring_area(q) if len(q) > 2 else 0)
+            wx, wy = ring_centroid(mp.project_ring(ring))
+            bx, by = tf["s"] * wx + tf["dx"], tf["s"] * wy + tf["dy"]
+            d = dist((bx, by), cen[code])
+            if d > 3:
+                bad.append((code, round(d, 1)))
+        (r.ok if not bad else r.fail)("simple.json: from_world lands 6 municipalities within 3 units of their centroid"
+                                      + (f" (off: {bad})" if bad else ""))
+    mad = next((p for p in pts.get("airports", []) if p.get("city") == "Madrid"), None)
+    bcn = next((p for p in pts.get("ports", []) if p["name"] == "Barcelona"), None)
+    ok = (mad and bcn and "28079" in cen and "08019" in cen
+          and dist((mad["x"], mad["y"]), cen["28079"]) <= 25 and dist((bcn["x"], bcn["y"]), cen["08019"]) <= 25)
+    (r.ok if ok else r.fail)("simple.json: Madrid airport and Barcelona port lie within 25 units of their municipality")
+
 
 def check_lens_series(r: Report, web_dir: Path) -> None:
     """lens_series.json (year slider data), only when the file exists: years ascending, array lengths, the latest
