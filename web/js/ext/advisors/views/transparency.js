@@ -257,7 +257,7 @@ export async function mount(ctx) {
       cHost.insertAdjacentHTML("beforeend", `<h4 class="adv-h4">Órganos con más importe, ${esc(cy)}</h4>`);
       if (organs.length) barList(cHost, { rank: true, ariaLabel: "Órganos de contratación", rows: organs.map((o) => ({ key: o.name, label: o.name, value: o.amount ?? 0, text: fin(o.amount) ? `${eur(o.amount)} (${int(o.n)})` : `${NA} (${int(o.n)})` })) });
       else cHost.insertAdjacentHTML("beforeend", `<p class="adv-empty">No hay desglose por órgano de ${esc(cy)}.</p>`);
-      cHost.insertAdjacentHTML("beforeend", `<p class="adv-note">Un solo licitador y los tramos por debajo de 15.000 y 40.000 € se calculan sobre el número de contratos de cada provincia; donde falta el dato se lee "${NA}", no 0 %. Un porcentaje alto no prueba ninguna irregularidad.</p>`);
+      cHost.insertAdjacentHTML("beforeend", `<p class="adv-note">Un solo licitador y los tramos por debajo de 15.000 y 40.000 € se calculan sobre el número de contratos de cada provincia; donde falta el dato se lee "${NA}", no 0 %. Un contrato menor se puede adjudicar directamente, así que lo habitual es que haya una sola oferta: un porcentaje alto no prueba ninguna irregularidad.</p>`);
     }
     drawJunta();
     el.insertAdjacentHTML("beforeend", attributionHtml([junta], [
