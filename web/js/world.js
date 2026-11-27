@@ -318,6 +318,8 @@ function computeStateLabels(w) {
 // space (a smaller district's label is moved up / down, and only hidden when nothing is free).
 const SCOPE_SPACING = 0.1;
 const SCOPE_LABEL_EM = 1.25; // label font size in hex widths (about 13 px at the home view)
+const MAX_SCOPE_LABELS = 30;
+
 function computeScopeLabels(w, dist, cxs, cys, cnt) {
   const { grid } = w;
   const { owner, states } = w.raw;
@@ -334,7 +336,14 @@ function computeScopeLabels(w, dist, cxs, cys, cnt) {
     if (dist[i] > maxDist[o]) maxDist[o] = dist[i];
   }
   const overlap = (a, b) => Math.abs(a.x - b.x) < (a.hw + b.hw) && Math.abs(a.y - b.y) < (a.hh + b.hh);
-  const order = states.map((_, s) => s).filter((s) => cellsOf[s].length).sort((a, b) => cellsOf[b].length - cellsOf[a].length);
+  let order = states.map((_, s) => s).filter((s) => cellsOf[s].length).sort((a, b) => cellsOf[b].length - cellsOf[a].length);
+  if (order.length > MAX_SCOPE_LABELS) {
+    // An urban area with hundreds of municipalities: name the most populated ones, the tooltip names the rest.
+    const pop = w.raw.pop || [];
+    const people = cellsOf.map((cells) => cells.reduce((sum, i) => sum + (pop[i] || 0), 0));
+    const top = new Set([...order].sort((a, b) => people[b] - people[a]).slice(0, MAX_SCOPE_LABELS));
+    order = order.filter((s) => top.has(s));
+  }
   const placed = [];
   const labels = [];
   for (const s of order) {
