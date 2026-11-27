@@ -13,7 +13,7 @@ Roads: class 0 "Autopista o autovía" = Natural Earth expressway flag; class 1 "
 Major or Secondary Highway at scale rank <= MAJOR_MAX_SCALERANK. Rail: tier 0 at scale rank <= RAIL_MAIN_SCALERANK,
 tier 1 up to RAIL_MAX_SCALERANK. A link needs one end on Spanish land (owner >= 0) and none on foreign land.
 
-Ports: Natural Earth 1:10m ports inside Spain. Airports: OurAirports, large and medium with scheduled service.
+Ports: Natural Earth 1:10m ports inside Spain. Airports: OurAirports, large and medium with scheduled service, with Eurostat passengers.
 No traffic figures are shipped (tons and passengers are null): those come from sources this project does not use.
 A site's `cell` is the Spanish land cell at its point, or the nearest one up to SITE_RINGS hexes away.
 """
@@ -30,7 +30,7 @@ from ..core.hexgrid import HexGrid
 from ..core.paths import WEB_DATA
 from ..core.store import load_interim, load_interim_payload, write_web
 
-REQUIRES = ["_world", "natural_earth_infra", "ourairports", "natural_earth", "gisco_lau", "cities.json"]
+REQUIRES = ["_world", "natural_earth_infra", "ourairports", "eurostat_airports", "natural_earth", "gisco_lau", "cities.json"]
 PRODUCES = ["infrastructure.json"]
 
 SAMPLE_KM = 4.0
@@ -44,8 +44,8 @@ ROAD_CLASSES = [{"id": "motorway", "name": "Autopista o autovía"}, {"id": "main
 RAIL_TIERS = [{"id": "main", "name": "Línea principal"}, {"id": "secondary", "name": "Línea secundaria"}]
 
 VINTAGE_NOTE = "Natural Earth v5.1.2 (1:10m)"
-NOTE = ("Sin cifras de tráfico: los datos de pasajeros y mercancías vienen de Aena y Puertos del Estado, "
-        "que este proyecto no usa.")
+NOTE = ("Pasajeros: Eurostat (avia_paoa), a partir de datos de Aena; cuenta llegadas y salidas. Los puertos van sin "
+        "toneladas: los datos vienen de Puertos del Estado, que este proyecto no usa.")
 RULES = {
     "roads": "Red principal esquemática de Natural Earth 1:10m, muestreada cada 4 km y ajustada a enlaces entre centros "
              "de hexágono. Es arte de mapa, no estadística. Clase 0, autopista o autovía: las vías que Natural Earth "
@@ -58,11 +58,15 @@ RULES = {
             "se recortan las líneas fuera de España.",
     "ports": "Puertos de Natural Earth 1:10m dentro de España (incluidas Canarias, Baleares, Ceuta y Melilla). "
              "Se ordenan por rango de escala de Natural Earth (menor es más importante); no hay cifras de mercancías.",
-    "airports": "Aeropuertos grandes y medianos de OurAirports con servicio regular. No hay cifras de pasajeros.",
+    "airports": "Aeropuertos grandes y medianos de OurAirports con servicio regular, más todo aeropuerto con pasajeros en "
+                "Eurostat. Los pasajeros son los de Eurostat (avia_paoa, a partir de datos de Aena): llegadas más salidas, "
+                "en el último año con cifra para casi todos. Se ordenan por pasajeros.",
 }
 ATTRIBUTION = [
     {"data": "carreteras, ferrocarriles y puertos", "source": "Natural Earth 1:10m v5.1.2", "license": "Dominio público"},
     {"data": "aeropuertos", "source": "OurAirports", "license": "Dominio público"},
+    {"data": "Pasajeros por aeropuerto", "source": "Eurostat (avia_paoa), a partir de datos de Aena",
+     "license": "Reutilización permitida citando la fuente (aviso de copyright de Eurostat)"},
 ]
 
 
@@ -389,16 +393,25 @@ def muni_display(municipalities: list[dict]) -> dict:
     return out
 
 
-def build_airports(loc: Locator, airports: list[dict], names: dict | None = None) -> list[dict]:
+def build_airports(loc: Locator, airports: list[dict], names: dict | None = None, traffic: list[dict] | None = None,
+                   others: list[dict] | None = None) -> list[dict]:
+    """OurAirports sites (large/medium with scheduled service) plus every Eurostat airport with passengers that
+    OurAirports knows by ICAO; sorted by passengers, descending, sites without a figure last."""
     names = names or {}
+    pax = {t["icao"]: t for t in traffic or []}
+    have = {a.get("icao") for a in airports}
+    extra = [o for o in others or [] if o.get("icao") in pax and o["icao"] not in have]  # Eurostat airports OurAirports lists without scheduled service
     out, seen = [], set()
-    for a in sorted(airports, key=lambda a: (a["type"] != "large_airport", a["name"] or "")):
+    for a in sorted(airports, key=lambda a: (a["type"] != "large_airport", a["name"] or "")) + extra:
         at = loc.place(a["lon"], a["lat"], known_spanish=True)
         if at is None or a["id"] in seen:
             continue
         seen.add(a["id"])
-        out.append({"id": a["id"], "name": airport_name_es(a["name"] or a["id"]), "city": names.get(at.get("county"), a["city"]), "type": a["type"], "hub": None,
-                    "passengers": None, **at})
+        t = pax.get(a.get("icao"))
+        out.append({"id": a["id"], "icao": a.get("icao"), "name": airport_name_es(a["name"] or a["id"]),
+                    "city": names.get(at.get("county"), a["city"]), "type": a["type"], "hub": None,
+                    "passengers": t["passengers"] if t else None, "passengers_year": t["year"] if t else None, **at})
+    out.sort(key=lambda a: (a["passengers"] is None, -(a["passengers"] or 0)))
     return out
 
 
@@ -419,13 +432,21 @@ def build() -> None:
     cities = json.loads((WEB_DATA / "cities.json").read_text())
     loc = Locator(world, grid, proj, lau["municipalities"], cities)
     ports = build_ports(loc, infra["ports"], accent_lookup(lau["municipalities"], cities))
-    airports = build_airports(loc, load_interim("ourairports")["airports"], muni_display(lau["municipalities"]))
+    sites = load_interim("ourairports")["airports"]
+    traffic = load_interim("eurostat_airports")["airports"]
+    airports = build_airports(loc, sites, muni_display(lau["municipalities"]), traffic,
+                              load_interim("ourairports").get("others", []))
+    matched = {a["icao"] for a in airports if a["passengers"] is not None}
+    lost = sorted(t["icao"] for t in traffic if t["icao"] not in matched)
+    print(f"    airports with passengers: {len(matched)} matched, {len(lost)} Eurostat airports unmatched {lost}")
+    print("    top 5: " + ", ".join(f"{a['id']} {a['passengers']:,}" for a in airports[:5]))
 
     doc = {
         "version": 1,
         "vintage": {"roads": VINTAGE_NOTE, "rail": VINTAGE_NOTE, "ports": VINTAGE_NOTE,
-                    "airports": load_interim_payload("ourairports")["vintage"]},
-        "sources": ["natural_earth_infra", "ourairports"],
+                    "airports": load_interim_payload("ourairports")["vintage"],
+                    "passengers": load_interim_payload("eurostat_airports")["vintage"]},
+        "sources": ["natural_earth_infra", "ourairports", "eurostat_airports"],
         "attribution": ATTRIBUTION,
         "note": NOTE,
         "rules": RULES,

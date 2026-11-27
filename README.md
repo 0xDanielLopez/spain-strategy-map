@@ -33,16 +33,16 @@ Fases F0 (mapa base), F1 (lentes del INE), F2 (ciudades), F3 (capas del mapa) y 
 - Cinco Consejeros: economía, población, formación y perfil profesional, territorio y un explorador de ciudades,
   comunidades y municipios.
 
-- Capas del mapa: red principal esquemática de carreteras y ferrocarril, puertos y aeropuertos (sin cifras de
-  tráfico), centrales nucleares, hidroeléctricas y de gas del inventario de 2021, y patrimonio mundial y parques
+- Capas del mapa: red principal esquemática de carreteras y ferrocarril, puertos y aeropuertos (con pasajeros
+  por aeropuerto, sin toneladas en los puertos), centrales nucleares, hidroeléctricas y de gas del inventario de 2021, y patrimonio mundial y parques
   nacionales. Tres Consejeros más: energía, infraestructuras y patrimonio y parques.
 
-Los Consejeros de defensa y prosperidad siguen ocultos: no tengo datos abiertos para ellos. Tampoco uso datos de
-pasajeros ni de mercancías, porque vienen de Aena y Puertos del Estado.
+Los Consejeros de defensa y prosperidad siguen ocultos: no tengo datos abiertos para ellos. Los pasajeros de los aeropuertos vienen de Eurostat (a partir de datos de Aena); no uso toneladas de los puertos, porque vienen de Puertos del Estado.
 
 ### Qué no cuentan las capas
 
 - La red de carreteras y ferrocarril es arte de mapa de Natural Earth, no estadística.
+- Los pasajeros de cada aeropuerto cuentan llegadas más salidas (Eurostat, a partir de datos de Aena). Los puertos siguen sin toneladas.
 - Las centrales vienen del inventario de WRI de 2021, que ya no se actualiza. Dejo fuera el carbón y el petróleo,
   porque la mayoría de esas centrales ha cerrado desde entonces, y la eólica y la solar, porque el inventario de 2021
   está muy incompleto. Las sumas son de las centrales representadas, no la potencia instalada de España.
@@ -94,6 +94,7 @@ uv run python -m pipeline serve     # abre http://127.0.0.1:8765
 | INE: áreas urbanas funcionales 2026, ocupados por sector (69992, 70002, 69968), Contabilidad Regional (80109) | Instituto Nacional de Estadística | Reutilización permitida citando la fuente | Ciudades, rendimientos y PIB |
 | [Natural Earth 1:10m](https://www.naturalearthdata.com/) carreteras, ferrocarril y puertos | Natural Earth | Dominio público | Red principal esquemática, puertos |
 | [OurAirports](https://ourairports.com/data/) | OurAirports | Dominio público | Aeropuertos |
+| [Eurostat avia_paoa](https://ec.europa.eu/eurostat/databrowser/view/avia_paoa/default/table) | Eurostat (datos de Aena) | Reutilización citando la fuente | Pasajeros por aeropuerto |
 | [Global Power Plant Database v1.3](https://datasets.wri.org/dataset/globalpowerplantdatabase) (2021) | World Resources Institute | CC BY 4.0 | Centrales nucleares, hidroeléctricas y de gas |
 | [Wikidata](https://www.wikidata.org/) | Wikimedia | CC0 | Patrimonio mundial y parques nacionales |
 

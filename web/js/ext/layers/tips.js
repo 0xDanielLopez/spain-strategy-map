@@ -1,6 +1,6 @@
 // Hover tooltips for the map-art layers (HTML strings; every data value is escaped). Each says where the number comes
 // from and the caveat that matters for it. A null value is never shown as 0: the line is left out or says "sin dato".
-// Spain has no port tonnage or airport passenger figures in this build (not openly licensed), so those lines only
+// Spain has airport passengers (Eurostat) but no port tonnage in this build (not openly licensed), so the port line only
 // appear when a file brings them.
 import { esc, compact, int } from "../../format.js";
 import { portClass } from "./model.js";
@@ -42,8 +42,7 @@ export const tips = {
   airport(a) {
     const kind = a.hub ? HUB_NAME[a.hub] || a.hub : AIRPORT_TYPE[a.type] || "Aeropuerto";
     const lines = [`<b>${esc([a.id, a.name].filter(Boolean).join(" · ") || "Aeropuerto")}</b> ${a.city ? muted(esc(a.city)) : ""}`.trim(), esc(kind)];
-    if (isNum(a.passengers)) lines.push(`<b>${num(a.passengers)}</b> pasajeros${a.year ? ` (${esc(a.year)})` : ""}`);
-    else lines.push(muted("Sin cifras de pasajeros: no hay datos con licencia abierta."));
+    if (isNum(a.passengers)) lines.push(`<b>${num(a.passengers)}</b> pasajeros${a.passengers_year ? ` en ${esc(a.passengers_year)}` : ""} (llegadas y salidas)`);
     return lines.join("<br>");
   },
   road(r) {

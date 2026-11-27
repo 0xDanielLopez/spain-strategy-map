@@ -794,9 +794,12 @@ Same shapes as the US sections above, with these changes (built by `pipeline/bui
 * **infrastructure.json**: roads and rail from Natural Earth 1:10m v5.1.2 rasterised to hex links (class 0 = NE
   `expressway == 1`, 1 = other major or secondary highways at scalerank <= 7; rail tier 0 = scalerank <= 5, 1 = 6-7);
   links have no route name. Ports = Natural Earth ports in Spain (`scalerank`, `rank` by scalerank, `tons: null`).
-  Airports = OurAirports large and medium airports with scheduled service (`type`, `passengers: null`, `hub: null`;
-  names in Spanish, `city` = the municipality that contains the point). No traffic figures: they come from Aena and
-  Puertos del Estado, which this project does not use (`note`).
+  Airports = OurAirports large and medium airports with scheduled service, plus any Eurostat airport with passengers
+  (`id` IATA, `icao`, `type`, `hub: null`, `passengers` = int > 0 or null, `passengers_year` set whenever `passengers`
+  is; names in Spanish, `city` = the municipality that contains the point). Sorted by passengers descending, nulls
+  last. Passengers = Eurostat `avia_paoa` (`PAS_CRD`, schedule and coverage TOTAL, from Aena data), arrivals plus
+  departures, latest year with values for most airports (source `eurostat_airports`, `vintage.passengers`). Ports
+  have no tonnage: it comes from Puertos del Estado, which this project does not use (`note`).
 * **resources.json**: WRI Global Power Plant Database v1.3 (2021 edition), Spain, only `nuclear`, `hydro`, `gas`
   (every plant, no capacity cutoff; `value` = MW). Coal and oil are left out (most have closed since), wind and solar
   too (the 2021 inventory is very incomplete). Summaries are of the plants shown, not Spain's capacity.

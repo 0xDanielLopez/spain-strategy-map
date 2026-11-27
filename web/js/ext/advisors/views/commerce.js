@@ -1,7 +1,7 @@
 // Infraestructuras: puertos, aeropuertos y red de carreteras y ferrocarril (infrastructure.json).
-// Sin cifras de tráfico: los pasajeros y las toneladas de puertos no tienen licencia abierta, así que no se muestran.
+// Pasajeros de los aeropuertos: Eurostat (llegadas y salidas). Los puertos van sin toneladas: no tienen licencia abierta.
 import { esc, fin } from "../core/util.js";
-import { int } from "../core/fmt.js";
+import { int, compact } from "../core/fmt.js";
 import { swatchLegend } from "../core/charts.js";
 import { createTable } from "../core/table.js";
 import { section, tiles, segmented } from "../core/view.js";
@@ -15,7 +15,8 @@ const AIR_TYPE = { large_airport: "Grande", medium_airport: "Mediano" };
 const portClass = (p) => (p.scalerank <= 2 ? 1 : p.scalerank <= 5 ? 2 : 3);
 const PORT_CLASS_NAME = { 1: "Mayor", 2: "Intermedio", 3: "Menor" };
 const PORT_SIZE = { 1: 3, 2: 1.8, 3: 1 };
-const AIR_SIZE = { large_airport: 3, medium_airport: 1.5 };
+const AIR_SIZE = { large_airport: 3, medium_airport: 1.5, small_airport: 1 };
+const paxM = (n) => (fin(n) && n > 0 ? compact(n) : "sin dato");
 
 export async function mount(ctx) {
   const { app, el, link } = ctx;
@@ -35,11 +36,16 @@ export async function mount(ctx) {
 
   // --- cabecera -----------------------------------------------------------------------------------------------
   const nLarge = airports.filter((a) => a.type === "large_airport").length;
+  const withPax = airports.filter((a) => fin(a.passengers));
+  const paxTotal = withPax.reduce((t, a) => t + a.passengers, 0);
+  const paxYears = [...new Set(withPax.map((a) => a.passengers_year).filter(Boolean))].sort();
+  const paxYear = paxYears.length > 1 ? `${paxYears[0]} a ${paxYears[paxYears.length - 1]}` : paxYears[0] || "";
   el.insertAdjacentHTML("beforeend", tiles([
     { label: "Puertos", value: int(ports.length), sub: "los que marca Natural Earth" },
     { label: "Aeropuertos", value: int(airports.length), sub: `${int(nLarge)} grandes y ${int(airports.length - nLarge)} medianos` },
+    { label: "Pasajeros en aeropuertos", value: withPax.length ? compact(paxTotal) : "Sin dato", sub: withPax.length ? `${paxYear} · llegadas y salidas de ${int(withPax.length)} aeropuertos` : "sin cifras" },
     { label: "Tramos de autopista o autovía", value: int(nRoad[0] || 0), sub: "enlaces entre casillas" },
-  ]) + `<p class="adv-callout">${esc(infra.note || "Sin cifras de tráfico.")}</p>`);
+  ]) + `<p class="adv-callout">${esc(infra.note || "")}</p>`);
 
   // --- puertos --------------------------------------------------------------------------------------------------
   const portHover = (p) => {
@@ -67,23 +73,24 @@ export async function mount(ctx) {
     link.hover(a ? { cells: new Set(a.cell != null ? [a.cell] : []), label: `${a.id} · ${a.name || a.city}` } : null);
     airBubbles?.setHot(a ? a.key : null);
   };
-  const aBody = section(el, { title: "Aeropuertos", kicker: esc(v.airports || ""), note: "Aeropuertos grandes y medianos según OurAirports. Sin cifra de pasajeros: la que publica Aena no tiene licencia abierta." });
+  const aBody = section(el, { title: "Aeropuertos", kicker: esc(v.airports || ""), note: "Aeropuertos grandes y medianos según OurAirports, ordenados por pasajeros. Los pasajeros son los de Eurostat, a partir de datos de Aena, y cuentan llegadas más salidas." });
   airTable = createTable(aBody, {
     caption: "Aeropuertos grandes y medianos", rank: true, maxHeight: 300, search: "Buscar aeropuertos",
     searchText: (a) => `${a.id} ${a.name} ${a.city || ""} ${stateName.get(a.state) || ""}`,
     columns: [
       { key: "city", label: "Aeropuerto", align: "l", width: "minmax(0,1.3fr)", value: (a) => a.name || a.city, html: (a) => `${esc((a.name || a.city || "").replace(/^Aeropuerto (de )?/, ""))} <span class="sub">${esc(a.id)}</span>`, tip: (a) => a.name },
       { key: "state", label: "CCAA", align: "l", width: "minmax(0,1.2fr)", value: (a) => stateName.get(a.state) || a.state, text: (a) => stateName.get(a.state) || a.state || "sin dato" },
+      { key: "pax", label: "Pasajeros (año)", align: "r", width: "112px", value: (a) => (fin(a.passengers) ? a.passengers : null), html: (a) => (fin(a.passengers) ? `${esc(paxM(a.passengers))}${a.passengers_year ? ` <span class="sub">${esc(a.passengers_year)}</span>` : ""}` : "sin dato"), title: "Pasajeros (llegadas y salidas), Eurostat; entre paréntesis el año" },
       { key: "type", label: "Tipo", align: "l", width: "76px", value: (a) => AIR_SIZE[a.type] ?? null, text: (a) => AIR_TYPE[a.type] || "sin dato", title: "Tipo de OurAirports" },
     ],
     rows: airports,
-    sort: { key: "type", dir: "desc" },
+    sort: { key: "pax", dir: "desc" },
     onHover: airHover,
     onClick: (a) => flyTo(a),
   });
 
   // --- en el mapa -----------------------------------------------------------------------------------------------
-  const mBody = section(el, { title: "En el mapa", note: "Cada círculo es un puerto o un aeropuerto. El tamaño sigue su clase, no su tráfico." });
+  const mBody = section(el, { title: "En el mapa", note: "Cada círculo es un puerto o un aeropuerto. El tamaño de los aeropuertos sigue sus pasajeros; el de los puertos, su clase, porque no hay toneladas." });
   let show = "both";
   segmented(mBody, {
     label: "Mostrar", value: show,
@@ -99,13 +106,13 @@ export async function mount(ctx) {
   });
   airBubbles = ctx.bubbles("airports", {
     rMax: 14, alpha: 0.5,
-    tip: (b) => `<b>${esc(b.it.id)} · ${esc(b.it.name)}</b><br>Aeropuerto ${esc((AIR_TYPE[b.it.type] || "").toLowerCase())}${b.it.city ? ` · ${esc(b.it.city)}` : ""}`,
+    tip: (b) => `<b>${esc(b.it.id)} · ${esc(b.it.name)}</b><br>Aeropuerto ${esc((AIR_TYPE[b.it.type] || "").toLowerCase())}${b.it.city ? ` · ${esc(b.it.city)}` : ""}${fin(b.it.passengers) ? `<br>${esc(compact(b.it.passengers))} pasajeros en ${esc(b.it.passengers_year)} (llegadas y salidas)` : ""}`,
     onHover: (b) => airTable?.setHot(b ? b.key : null),
     onClick: (b) => { airTable?.setHot(b.key); flyTo(b.it); },
   });
   function drawSites() {
     portBubbles.set(show !== "air" ? ports.filter((p) => fin(p.scalerank)).map((p) => ({ key: p.key, x: p.x, y: p.y, value: PORT_SIZE[portClass(p)], color: PORT_COLOR, it: p })) : [], { vMax: 3 });
-    airBubbles.set(show !== "ports" ? airports.filter((a) => AIR_SIZE[a.type]).map((a) => ({ key: a.key, x: a.x, y: a.y, value: AIR_SIZE[a.type], color: AIR_COLOR, it: a })) : [], { vMax: 3 });
+    airBubbles.set(show !== "ports" ? airports.filter((a) => AIR_SIZE[a.type]).map((a) => ({ key: a.key, x: a.x, y: a.y, value: fin(a.passengers) ? a.passengers : AIR_SIZE[a.type] * 1e5, color: AIR_COLOR, it: a })) : [], { vMax: Math.max(1, ...airports.map((a) => (fin(a.passengers) ? a.passengers : 0))) });
   }
   drawSites();
 
@@ -122,7 +129,7 @@ export async function mount(ctx) {
   }
 
   el.insertAdjacentHTML("beforeend", attributionHtml([infra], [
-    "Sin cifras de tráfico: ni pasajeros ni toneladas, porque Aena y Puertos del Estado no publican con licencia abierta.",
+    "Los pasajeros de los aeropuertos son los de Eurostat (avia_paoa), a partir de datos de Aena, y cuentan llegadas más salidas. Los puertos van sin toneladas: los datos vienen de Puertos del Estado, que este proyecto no usa.",
     "Las carreteras y los ferrocarriles de Natural Earth son una versión simplificada, no la red real: el ferrocarril de nivel secundario es especialmente denso y es arte de mapa.",
     "Los puertos son los que marca Natural Earth, una selección cartográfica que deja fuera puertos con mucho tráfico; los aeropuertos, los grandes y medianos de OurAirports.",
   ]));

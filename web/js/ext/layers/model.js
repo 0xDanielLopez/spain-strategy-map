@@ -21,10 +21,12 @@ export function portClass(p) {
   const r = p?.scalerank;
   return !isNum(r) ? 2 : r <= 2 ? 0 : r <= 5 ? 1 : 2;
 }
-// Airports: the hub class when given (L/M/S/N), else the OurAirports type; unknown = the smallest class.
+// Airports: the hub class when given (L/M/S/N); else the passengers when present (>= 10 M large, >= 1 M medium, else
+// small); else the OurAirports type; unknown = the smallest class.
 const AIRPORT_TYPE_TIER = { large_airport: 0, medium_airport: 2, small_airport: 3 };
 export function airportClass(a) {
   if (a?.hub) return airportTier(a);
+  if (isNum(a?.passengers)) return a.passengers >= 1e7 ? 0 : a.passengers >= 1e6 ? 2 : 3;
   return AIRPORT_TYPE_TIER[a?.type] ?? 4;
 }
 import { prepareCellSet, fortKind, isAirfieldName } from "../../render/art/sites.js";

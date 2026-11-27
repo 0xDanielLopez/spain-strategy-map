@@ -728,8 +728,12 @@ def check_map_layers(r: Report, docs: dict, world) -> None:
             badp = [p.get("id") for p in inf[k] if not land(p.get("cell")) or not p.get("name")]
             if badp:
                 r.fail(f"infrastructure.json {k}: {len(badp)} sites without a Spanish land cell ({_sample(badp)})")
-        if any(p.get("tons") is not None for p in inf["ports"]) or any(a.get("passengers") is not None for a in inf["airports"]):
-            r.fail("infrastructure.json: traffic figures (tons, passengers) must be null (licence)")
+        if any(p.get("tons") is not None for p in inf["ports"]):
+            r.fail("infrastructure.json: port tons must be null (Puertos del Estado is not used)")
+        badpax = [a.get("id") for a in inf["airports"]
+                  if not (a.get("passengers") is None or (is_int(a["passengers"]) and a["passengers"] > 0 and is_int(a.get("passengers_year"))))]
+        if badpax:
+            r.fail(f"infrastructure.json airports: passengers must be an int > 0 (or null) with passengers_year ({_sample(badpax)})")
         if traffic(inf):
             r.fail(f"infrastructure.json: traffic fields present: {_sample(traffic(inf))}")
         if r.count("FAIL") == before:

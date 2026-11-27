@@ -115,5 +115,24 @@ class PlaceTest(unittest.TestCase):
         self.assertIsNone(loc.place(-0.63, 35.7))  # Oran lands under the Canary frame
 
 
+class AirportPassengersTest(unittest.TestCase):
+    def test_eurostat_matches_by_icao_and_sorts_nulls_last(self):
+        owner = [3] * 100
+        g, loc = PlaceTest.locator(self, owner)
+        x, y = g.center(5, 5)
+        lon, lat = -3.0, 40.0
+        loc.proj = type("P", (), {"hidden": lambda self, a, b: False, "__call__": lambda self, a, b: (x, y)})()
+        mk = lambda i, icao, t="medium_airport": {"id": i, "icao": icao, "ident": icao, "name": f"{i} Airport", "city": None, "type": t, "lon": lon, "lat": lat}
+        sites = [mk("AAA", "LEAA"), mk("BBB", "LEBB", "large_airport"), mk("CCC", "LECC")]
+        traffic = [{"icao": "LECC", "passengers": 5_000_000, "year": 2025}, {"icao": "LEZZ", "passengers": 9, "year": 2025}]
+        out = inf.build_airports(loc, sites, {}, traffic)
+        self.assertEqual([a["id"] for a in out], ["CCC", "BBB", "AAA"])
+        self.assertEqual((out[0]["passengers"], out[0]["passengers_year"], out[0]["icao"]), (5_000_000, 2025, "LECC"))
+        self.assertIsNone(out[1]["passengers"])
+        self.assertIsNone(out[1]["passengers_year"])
+        extra = inf.build_airports(loc, sites, {}, traffic + [{"icao": "LEXX", "passengers": 7, "year": 2025}], [mk("XXX", "LEXX", "small_airport")])
+        self.assertEqual(extra[1]["id"], "XXX")  # a Eurostat airport OurAirports lists without scheduled service
+
+
 if __name__ == "__main__":
     unittest.main()
