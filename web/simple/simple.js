@@ -4,6 +4,9 @@
 const NF0 = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0, useGrouping: 'always' });
 const NF1 = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: 'always' });
 const NA = 'sin dato';
+// Short noun phrase per indicator for headings; unknown keys fall back to the lower-cased label.
+const NOUN = { income: 'renta', age_mean: 'edad media', growth: 'crecimiento', density: 'densidad', elderly: 'mayores de 65', foreign: 'población extranjera', household: 'personas por hogar', poverty: 'población bajo el umbral de pobreza', higher_education: 'estudios superiores', non_primary: 'viviendas no principales', tourist: 'viviendas turísticas', born_abroad: 'nacidos en el extranjero', immigration: 'llegadas desde el extranjero', crime_rate: 'infracciones penales' };
+const nounOf = (ind) => NOUN[ind.key] || String(ind.label).toLowerCase();
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const isNum = (v) => v != null && !Number.isNaN(v);
@@ -432,6 +435,14 @@ function route() {
 }
 
 /* ---------- home ---------- */
+const EXPLORE = [
+  ['🏙️', 'Mapas de ciudad', 'estrategia.html?scope=sevilla', 'Sevilla, Madrid, Barcelona y Las Palmas por secciones censales'],
+  ['🕒', 'Años 2015-2024', 'estrategia.html#lens=income&y=2015', 'Renta, edad y hogares año a año'],
+  ['⚖️', 'Comparar municipios', 'estrategia.html#advisor=compare&a=41091&b=29067', 'Parecidos y cara a cara'],
+  ['🚆', 'En directo', 'estrategia.html', 'Trenes de Renfe y tiempo de AEMET'],
+  ['🔎', 'Transparencia', 'estrategia.html#advisor=transparency', 'Seguridad, boletines y contratación'],
+  ['🗺️', 'Capas del mapa', 'estrategia.html', 'Puertos, aeropuertos, energía y patrimonio'],
+];
 function showHome(root, highlight) {
   const ind0 = () => IND_BY[state.key];
   root.innerHTML = `
@@ -445,6 +456,7 @@ function showHome(root, highlight) {
             <button type="button" class="btn" id="btn-evo" aria-pressed="false" aria-controls="evo">Ver evolución</button>
           </div>
         </div>
+        <div class="legend" id="legend"></div>
         <div class="picker" id="picker" hidden></div>
         <div class="evo" id="evo" hidden>
           <button type="button" class="play" id="play" aria-label="Reproducir">▶</button>
@@ -453,11 +465,15 @@ function showHome(root, highlight) {
             <div class="evo-ticks"><span>${YEARS[0]}</span><span>${YEARS[LAST]}</span></div></div>
         </div>
         <div class="map" id="map"></div>
-        <div class="legend" id="legend"></div>
         <p class="src" id="src"></p>
       </section>
       <aside class="side" id="side" aria-label="Provincias con más y con menos"></aside>
-    </div>`;
+    </div>
+    <section class="explore" aria-labelledby="ex-h">
+      <h2 class="h2" id="ex-h">Más para explorar</h2>
+      <p class="note">Estas piezas siguen, por ahora, en el mapa de estrategia.</p>
+      <div class="ex-grid">${EXPLORE.map((e) => `<a class="ex-card" href="${e[2]}"><span class="ex-t"><span aria-hidden="true">${e[0]}</span> ${e[1]}</span><span class="ex-d">${e[3]}</span></a>`).join('')}</div>
+    </section>`;
   const $ = (id) => root.querySelector('#' + id);
   let timer = null, hl = highlight != null ? IDX[highlight] : null;
 
@@ -490,7 +506,7 @@ function showHome(root, highlight) {
       h = `<p class="eyebrow">Evolución</p><h1 class="find-h">En ${YEARS[state.yi]}, cada persona tenía de media ${fmt(n1, 'income')} netos al año.</h1><ul class="bullets"><li>En ${YEARS[0]} eran ${fmt(n0, 'income')}.</li><li>${state.yi === 0 ? 'Es el primer año de la serie.' : `Desde ${YEARS[0]} la renta ha subido un ${NF1.format((n1 / n0 - 1) * 100)} %.`}</li></ul>`;
     } else {
       const n = D.nation[state.key];
-      h = `<p class="eyebrow">Para situarte</p><h1 class="find-h"><span aria-hidden="true">${ind.icon}</span> ${esc(ind.label)}</h1><ul class="bullets"><li>Media de España: <b>${fmt(n.value, state.key)}</b></li><li>El municipio mediano: <b>${fmt(n.median, state.key)}</b></li></ul>`;
+      h = `<p class="eyebrow">Para situarte</p><h1 class="find-h"><span aria-hidden="true">${ind.icon}</span> ${esc(ind.label)}: media de España ${fmt(n.value, state.key)}</h1><ul class="bullets"><li>El municipio mediano: <b>${fmt(n.median, state.key)}</b></li><li>Dato de ${yearOf(state.key, state.yi)}. ${esc(sourceOf(state.key, state.yi))}</li></ul>`;
     }
     $('find').innerHTML = h;
   }
@@ -499,14 +515,16 @@ function showHome(root, highlight) {
     $('map-ico').textContent = ind.icon; $('map-title').textContent = ind.label;
     $('bench').textContent = `Media de España: ${fmt(nat, state.key)} · ${yearOf(state.key, state.yi)}`;
     $('btn-evo').hidden = state.key !== 'income';
-    $('src').textContent = `Fuente: ${sourceOf(state.key, state.yi)}. Límites municipales: Eurostat GISCO, © EuroGeographics.`;
+    $('src').textContent = `Fuente: ${sourceOf(state.key, state.yi)}. Límites municipales: Eurostat GISCO, © EuroGeographics (uso no comercial).`;
   }
   function renderLegend() {
     const b = breaks(state.key), k = state.key;
     const labs = [`menos de ${fmt(b[0], k)}`, `${fmt(b[0], k)} a ${fmt(b[1], k)}`, `${fmt(b[1], k)} a ${fmt(b[2], k)}`, `${fmt(b[2], k)} a ${fmt(b[3], k)}`, `${fmt(b[3], k)} o más`];
     let h = '<div class="leg-axis" aria-hidden="true"><span>menos</span><i></i><span>más</span></div><ul class="leg-row">';
     labs.forEach((t, n) => (h += `<li><i style="background:var(--seq-${n + 1})"></i><span>${t}</span></li>`));
-    h += '<li><i class="nodata"></i><span>sin dato</span></li></ul><p class="note">Cada color agrupa a una quinta parte de los municipios.</p>';
+    h += '<li><i class="nodata"></i><span>sin dato</span></li></ul>';
+    const miss = N - sortedVals(k, state.yi).length;
+    h += `<p class="note">Cada color agrupa a una quinta parte de los municipios con dato.${miss / N > 0.05 ? ` Sin dato: ${NF0.format(miss)} municipios.` : ''}</p>`;
     $('legend').innerHTML = h;
   }
   function renderSide() {
@@ -516,14 +534,14 @@ function showHome(root, highlight) {
     const all = top.concat(bot).map((p) => p.v).concat([nat, 0]);
     const lo = Math.min(...all), hi = Math.max(...all), span = (hi - lo) * 1.04 || 1;
     const pos = (v) => Math.max(0, Math.min(100, ((v - lo) / span) * 100));
-    const noun = k === 'income' ? 'renta' : null;
+    const noun = nounOf(ind0());
     const group = (title, list, cls) => `<div class="bars"><h3>${title}</h3>${list.map((p) => {
       const a = pos(0), b = pos(p.v);
       return `<div class="row"><span class="row-n">${esc(p.name)}</span><span class="track" style="--np:${pos(nat).toFixed(2)}%"><i class="${cls}" style="left:${Math.min(a, b).toFixed(2)}%;width:${Math.max(Math.abs(b - a), 0.6).toFixed(2)}%"></i></span><span class="row-v">${fmt(p.v, k)}</span></div>`;
     }).join('')}</div>`;
     $('side').innerHTML = `<p class="nat"><span class="nat-mark" aria-hidden="true"></span>La línea marca la media de España: <b>${fmt(nat, k)}</b></p>` +
-      group(noun ? 'Las 5 provincias con más ' + noun : 'Las 5 provincias con más', top, 'top') +
-      group(noun ? 'Las 5 con menos' : 'Las 5 con menos', bot, 'bot') +
+      group('Las 5 provincias con más ' + noun, top, 'top') +
+      group('Las 5 con menos ' + noun, bot, 'bot') +
       `<p class="src">Media de los municipios de cada provincia, ponderada por población.</p>`;
   }
   function renderEvo() {
@@ -591,9 +609,12 @@ const PHRASE = {
 };
 function sentenceFor(key, v) {
   if (!isNum(v)) return 'No hay dato para comparar este municipio.';
-  const s = sortedVals(key, LAST), t = Math.round((10 * lessCount(s, v)) / s.length), ph = PHRASE[key];
-  if (t >= 5) return `${ph[0]} ${t >= 10 ? 'casi todos los municipios' : t + ' de cada 10 municipios'}.`;
-  return `${ph[1]} ${t <= 0 ? 'casi todos los municipios' : 10 - t + ' de cada 10 municipios'}.`;
+  const s = sortedVals(key, LAST), t = Math.round((10 * lessCount(s, v)) / s.length);
+  const noun = nounOf(IND_BY[key] || { key, label: key });
+  const ph = PHRASE[key] || ['Más ' + noun + ' que', 'Menos ' + noun + ' que'];
+  const tail = s.length / N < 0.9 ? ` entre los ${NF0.format(s.length)} municipios con dato` : '';
+  if (t >= 5) return `${ph[0]} ${t >= 10 ? 'casi todos los municipios' : t + ' de cada 10 municipios'}${tail}.`;
+  return `${ph[1]} ${t <= 0 ? 'casi todos los municipios' : 10 - t + ' de cada 10 municipios'}${tail}.`;
 }
 function stripHTML(key, v, name) {
   if (!isNum(v)) return `<div class="strip strip-na"><span>${NA}</span></div>`;
@@ -621,7 +642,7 @@ function measureHTML(ind, row) {
   </article>`;
 }
 
-// Similar municipalities: nearest by z-score distance over the 9 indicators (density in log10),
+// Similar municipalities: nearest by z-score distance over all indicators (density in log10),
 // among places with 20 % to 500 % of the population of the chosen one.
 function zTable() {
   if (cache.z) return cache.z;
@@ -685,7 +706,7 @@ function changeHTML(row) {
 function showCard(root, code) {
   const i0 = IDX[code], row = ROWS[i0], p = PROV[row[2]], name = row[1];
   const sameProv = []; for (let i = 0; i < N; i++) if (ROWS[i][2] === row[2]) sameProv.push(i);
-  const sim = similarTo(code);
+  const sim = similarTo(code), EXTRA = IND.filter((i) => !MEASURES.includes(i.key)).length;
   root.innerHTML = `
     <p class="back-wrap"><a class="back" href="${hashFor({ i: state.key, h: code }) || '#'}">← Ver el mapa de España</a></p>
     <header class="card-head">
@@ -700,7 +721,7 @@ function showCard(root, code) {
         <span><i class="lg lg-med"></i>municipio mediano</span><span><i class="lg lg-dot"></i><b>${esc(name)}</b></span>
       </div>
       <div class="measures">${MEASURES.map((k) => measureHTML(IND_BY[k], row)).join('')}</div>
-      <button type="button" class="more" id="more" aria-expanded="false" aria-controls="extra"><span id="more-l">Ver 6 indicadores más</span> <span aria-hidden="true">▾</span></button>
+      <button type="button" class="more" id="more" aria-expanded="false" aria-controls="extra"><span id="more-l">Ver ${EXTRA} indicadores más</span> <span id="more-a" aria-hidden="true">▾</span></button>
       <div class="measures extra" id="extra" hidden>${IND.filter((i) => !MEASURES.includes(i.key)).map((i) => measureHTML(i, row)).join('')}</div>
     </section>
     <div class="lower">
@@ -709,12 +730,13 @@ function showCard(root, code) {
         <div class="map loc" id="loc"></div>
         <p class="note"><b>${esc(name)}</b>, en la provincia de ${esc(p ? p.name : '')} (zona más oscura).</p>
         <p class="note muted">Toca el mapa para elegir otro municipio.</p>
-        <p class="src">Límites municipales: Eurostat GISCO, © EuroGeographics.</p>
+        <p class="src">Límites municipales: Eurostat GISCO, © EuroGeographics (uso no comercial).</p>
       </section>
       <section class="panel" id="change">${changeHTML(row)}</section>
       <section class="panel" aria-labelledby="sh">
         <h2 class="h2" id="sh">🧩 Se parecen a ${esc(name)}</h2>
         ${sim.length ? `<p class="note">Municipios de tamaño parecido con indicadores parecidos.</p><div class="chips">${sim.map((i) => `<a class="chip sim" href="#m=${CODES[i]}&i=${state.key}"><b>${esc(ROWS[i][1])}</b><span>${esc(PROV[ROWS[i][2]] ? PROV[ROWS[i][2]].name : '')}</span></a>`).join('')}</div>` : `<p class="note">No hay municipios comparables: ${NA}.</p>`}
+        <p class="note"><a href="estrategia.html#advisor=compare&a=${esc(code)}">Comparar con otro municipio</a></p>
         <h2 class="h2 share-h">🔗 Comparte</h2>
         <button type="button" class="btn" id="copy">Copiar enlace</button>
         <p class="note muted" id="copymsg" role="status"></p>
@@ -724,7 +746,7 @@ function showCard(root, code) {
   const $ = (id) => root.querySelector('#' + id);
   $('more').addEventListener('click', () => {
     const open = $('extra').hidden; $('extra').hidden = !open;
-    $('more').setAttribute('aria-expanded', String(open)); $('more-l').textContent = open ? 'Ocultar los 6 indicadores' : 'Ver 6 indicadores más';
+    $('more').setAttribute('aria-expanded', String(open)); $('more-l').textContent = open ? `Ocultar los ${EXTRA} indicadores` : `Ver ${EXTRA} indicadores más`; $('more-a').textContent = open ? '▴' : '▾';
   });
   const map = createMap($('loc'), {
     twoStep: false,
@@ -751,7 +773,7 @@ function showCard(root, code) {
 async function boot() {
   const app = document.getElementById('app');
   try {
-    const res = await fetch('../data/simple.json');
+    const res = await fetch(new URL('../data/simple.json', import.meta.url)); // next to this script's folder, wherever the page lives
     if (!res.ok) throw new Error('http ' + res.status);
     prepare(await res.json());
   } catch (err) {
@@ -761,7 +783,9 @@ async function boot() {
   state.yi = LAST;
   prepareGeometry(); buildSearchIndex(); setupSearch();
   const f = document.getElementById('foot-src');
-  f.textContent = D.meta.sources;
+  // Sources text from the data builder, with the geometry credit normalised to the full attribution (never duplicated).
+  const src = String(D.meta.sources || '').replace(/\s*Límites municipales:[^.]*\.?(?:\s*©[^.]*\.)?/, '').trim();
+  f.textContent = (src ? src + ' ' : '') + 'Límites municipales: Eurostat GISCO, © EuroGeographics (uso no comercial).';
   window.addEventListener('hashchange', route);
   route();
 }

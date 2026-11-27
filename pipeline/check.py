@@ -1119,11 +1119,14 @@ def check_simple(r: Report, web_dir: Path) -> None:
         r.fail(f"simple.json: invalid JSON ({exc})")
         return
     size = path.stat().st_size
-    (r.ok if size < 2_600_000 else r.fail)(f"simple.json: {size / 1e6:.2f} MB (limit 2.6 MB)")
+    (r.ok if size < 3_000_000 else r.fail)(f"simple.json: {size / 1e6:.2f} MB (limit 3.0 MB)")
     cols = (doc.get("munis") or {}).get("cols") or []
     rows = (doc.get("munis") or {}).get("rows") or []
     keys = [i.get("key") for i in doc.get("indicators", [])]
-    (r.ok if cols[5:] == keys and len(keys) == 9 else r.fail)("simple.json: indicator order matches the municipal columns")
+    (r.ok if cols[5:] == keys and len(keys) == 14 else r.fail)("simple.json: indicator order matches the municipal columns")
+    miss = [k for k in keys if k not in ((doc.get("nation") or {}))
+            or any(k not in (p.get("values") or {}) for p in doc.get("provinces", []))]
+    (r.ok if not miss else r.fail)("simple.json: every indicator is in provinces and nation" + (f" (missing {miss})" if miss else ""))
     counties = _load(r, web_dir, "counties.json", False)
     if counties:
         ci = {k: i for i, k in enumerate(counties["columns"])}

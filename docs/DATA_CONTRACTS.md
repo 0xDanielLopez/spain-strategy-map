@@ -310,20 +310,25 @@ each year, not adjusted for inflation, and each municipality is spread over its 
 
 Data of the simple interface (`web/simple/`): a map of municipal boundaries and a card per municipality. Produced by
 `pipeline/build/simple.py` (REQUIRES `gisco_lau`, `ine_series`, `counties.json`, `projection.json`, `states.json`); run
-`uv run python -m pipeline build simple`. Under 2.6 MB (`check` fails above). Percentages are 0-100, income is an integer in
+`uv run python -m pipeline build simple`. Under 3.0 MB (`check` fails above). Percentages are 0-100, income is an integer in
 euros, `null` is "sin dato" and is never 0. Codes: municipality = 5-digit INE string, province = 2 digits, ccaa = 2 digits.
 
-- `meta`: `{"sources", "years", "shapes_note", "built"}`. `sources` is Spanish (INE and "Límites municipales: Eurostat GISCO,
-  © EuroGeographics"); `built` is the data vintage text, no clock time.
-- `indicators[]`: 9 entries in this order: income, age_mean, growth, density, elderly, foreign, household, poverty,
-  higher_education. Each: `{"key", "label", "unit", "format", "year", "source", "higher_is", "icon"}`. `format` is
+- `meta`: `{"sources", "years", "shapes_note", "built"}`. `sources` is Spanish (INE, Ministerio del Interior; ends with "Límites municipales: Eurostat GISCO,
+  © EuroGeographics (uso no comercial)."); `built` is the data vintage text, no clock time.
+- `indicators[]`: 14 entries in this order: income, age_mean, growth, density, elderly, foreign, household, poverty,
+  higher_education, non_primary (% of dwellings, Census 2021), tourist (% of dwellings, tourist dwellings May 2026),
+  born_abroad (% of population, 2026), immigration (arrivals from abroad per 1,000 inhabitants a year, mean 2022-2024),
+  crime_rate (criminal offences per 1,000 inhabitants, 2025; only municipalities above 20,000 inhabitants, so most
+  are `null`). The five new ones are `neutral` with `pct` / `dec1` formats. Each: `{"key", "label", "unit", "format", "year", "source", "higher_is", "icon"}`. `format` is
   `eur`, `years`, `pct`, `int` or `dec1`; `higher_is` is `better` or `neutral`.
-- `munis`: `{"cols", "rows"}`; columns `code, name, province, ccaa, population` plus the 9 indicator keys (cols 5..13).
+- `munis`: `{"cols", "rows"}`; columns `code, name, province, ccaa, population` plus the 14 indicator keys (cols 5..18).
   Names are natural: the article that the INE puts last goes first ("Las Palmas de Gran Canaria"), each side of a
   bilingual "A/B" name alone. `growth` is the change 2021-2026 in %.
 - `provinces[]`: `{"code", "name", "ccaa", "ccaa_name", "population", "values"}`; `values` is the population-weighted mean
-  of each indicator (density = people / km2).
-- `nation[key]`: `{"value", "median", "q"}`; `value` weighted by population, `median` and `q` (p5, p25, p50, p75, p95) over
+  of each indicator (density = people / km2; `growth` = sum of 2026 population over sum of 2021 population minus 1,
+  over the municipalities with both, 2021 from the census series; `crime_rate` and `tourist` are means of municipal
+  rates weighted by population, over the municipalities with a value).
+- `nation[key]`: `{"value", "median", "q"}`; `value` as in `provinces[].values` (so `growth` is the ratio of sums), `median` and `q` (p5, p25, p50, p75, p95) over
   municipalities with a value.
 - `series`: income per person by year: `{"years" (2015-2024), "nation", "provinces", "munis"}`, 10 values each, `null` for a gap.
 - `shapes`: `{"w": 1000, "h", "munis": {code: svg path}}` (equal-area map, Canarias in a lower-right inset, integer

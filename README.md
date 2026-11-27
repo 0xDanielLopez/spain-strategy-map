@@ -3,7 +3,17 @@
 España dibujada como un mapa de estrategia 4X: terreno en hexágonos, relieve, cobertura del suelo, lentes con datos
 del INE por municipio y las 68 áreas urbanas funcionales como ciudades, todo a partir de datos públicos.
 
-**Mapa en vivo: https://0xdaniellopez.github.io/spain-strategy-map/**
+**En vivo: https://0xdaniellopez.github.io/spain-strategy-map/**
+
+El sitio tiene dos formas de ver los mismos datos:
+
+- **Portada, vista simple** (`web/index.html` y `web/simple/`): un mapa con los límites reales de los 8.132 municipios,
+  una frase que lo resume, las provincias con más y con menos, y una ficha por municipio (14 indicadores, evolución de
+  la renta desde 2015, municipios parecidos). El fichero `web/data/simple.json` lo genera
+  `uv run python -m pipeline build simple`.
+- **Mapa de estrategia** ([estrategia.html](https://0xdaniellopez.github.io/spain-strategy-map/estrategia.html)): el
+  mapa de hexágonos con ciudades, capas, años, comparador, mapas de ciudad y datos en directo. Los enlaces antiguos a la
+  raíz (`?scope=sevilla`, `#lens=...`) redirigen a esta página.
 
 Este proyecto es un fork de [usaciv](https://karpathy.ai/usaciv/), de Andrej Karpathy (licencia MIT), que dibuja
 Estados Unidos de la misma forma. Mantengo su pipeline, su rejilla hexagonal y el arte del mapa, y cambio los datos de
@@ -193,6 +203,8 @@ cd live/worker && node --test test/*.test.mjs
 - **Ficheros de datos en `web/data/`**: derivan de las fuentes de arriba y mantienen sus condiciones. Los datos de
   hexágono a municipio y de hexágono a comunidad autónoma vienen de los límites de GISCO: solo uso no comercial, con
   el aviso de EuroGeographics. No están bajo la licencia MIT. Las descargas en bruto no están en este repositorio.
+  `web/data/simple.json` contiene además la geometría simplificada de los municipios, derivada de GISCO LAU: tiene
+  las mismas condiciones (solo uso no comercial, © EuroGeographics) y tampoco está bajo la licencia MIT.
 
 ## Cómo funciona
 

@@ -4,7 +4,8 @@ Everything comes from files that already exist: counties.json (the municipal row
 ine_series (income by year) and gisco_lau (boundaries), states.json and projection.json. Nothing is downloaded.
 
 Format: see docs/DATA_CONTRACTS.md "simple.json". Percentages are 0-100, income is an integer in euros, a missing
-value is null (never 0). Province and national values are population-weighted means (density = people / km2).
+value is null (never 0). Province and national values are population-weighted means (density = people / km2; growth = sum of 2026
+population over sum of 2021 population; crime_rate and tourist are population-weighted means of municipal rates).
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from ..core.store import WEB_DATA, load_interim, load_interim_payload, write_web
 REQUIRES = ["gisco_lau", "ine_series", "counties.json", "projection.json", "states.json"]
 PRODUCES = ["simple.json"]
 
-MAX_BYTES = 2_600_000
+MAX_BYTES = 3_000_000
 MADRID = "28079"
 YEARS = [str(y) for y in range(2015, 2025)]
 MAP_W = 1000
@@ -29,8 +30,10 @@ MIN_PART_AREA = 1.5  # secondary rings smaller than this (map units squared) are
 # Provinces of the south by definition, whatever their latitude (islands and the African cities).
 SOUTH_PROVINCES = {"35", "38", "51", "52"}
 
-SOURCES = ("INE (Atlas de distribución de renta de los hogares 2015-2024, Censo anual de población 2021 y 2026). "
-           "Límites municipales: Eurostat GISCO, © EuroGeographics.")
+SOURCES = ("INE (Atlas de distribución de renta de los hogares 2015-2024, Censo anual de población 2021 y 2026, "
+           "Censo de Población y Viviendas 2021, estadística experimental de viviendas turísticas 2026, Estadística de "
+           "Migraciones y Cambios de Residencia 2022-2024); Ministerio del Interior (Balance de Criminalidad 2025). "
+           "Límites municipales: Eurostat GISCO, © EuroGeographics (uso no comercial).")
 
 PROVINCES = """01 Araba/Álava|02 Albacete|03 Alicante/Alacant|04 Almería|05 Ávila|06 Badajoz|07 Illes Balears|08 Barcelona|09 Burgos|10 Cáceres|11 Cádiz|12 Castellón/Castelló|13 Ciudad Real|14 Córdoba|15 A Coruña|16 Cuenca|17 Girona|18 Granada|19 Guadalajara|20 Gipuzkoa|21 Huelva|22 Huesca|23 Jaén|24 León|25 Lleida|26 La Rioja|27 Lugo|28 Madrid|29 Málaga|30 Murcia|31 Navarra|32 Ourense|33 Asturias|34 Palencia|35 Las Palmas|36 Pontevedra|37 Salamanca|38 Santa Cruz de Tenerife|39 Cantabria|40 Segovia|41 Sevilla|42 Soria|43 Tarragona|44 Teruel|45 Toledo|46 Valencia/València|47 Valladolid|48 Bizkaia|49 Zamora|50 Zaragoza|51 Ceuta|52 Melilla""".split("|")
 PROVINCE_NAME = {p[:2]: p[3:] for p in PROVINCES}
@@ -48,9 +51,14 @@ INDICATORS = [
     ("household", "Tamaño medio del hogar", "personas", "dec1", 2024, SRC_ATLAS, "neutral", "🏠"),
     ("poverty", "Población bajo el umbral de pobreza", "% de la población", "pct", 2024, SRC_ATLAS, "neutral", "⚠️"),
     ("higher_education", "Con estudios superiores", "% de la población de 15 años o más", "pct", 2024, SRC_ATLAS, "better", "🎓"),
+    ("non_primary", "Viviendas no principales", "% de las viviendas", "pct", 2021, "INE, Censo de Población y Viviendas 2021", "neutral", "🏚️"),
+    ("tourist", "Viviendas turísticas", "% de las viviendas", "pct", 2026, "INE, estadística experimental de viviendas turísticas (mayo de 2026), y Censo de Población y Viviendas 2021", "neutral", "🧳"),
+    ("born_abroad", "Nacidos en el extranjero", "% de la población", "pct", 2026, "INE, Censo anual de población 2026 (tabla 65031)", "neutral", "🌍"),
+    ("immigration", "Llegadas desde el extranjero", "por 1.000 hab. al año", "dec1", 2024, "INE, Estadística de Migraciones y Cambios de Residencia (media anual 2022-2024)", "neutral", "✈️"),
+    ("crime_rate", "Infracciones penales", "por 1.000 hab.", "dec1", 2025, "Ministerio del Interior, Balance de Criminalidad 2025", "neutral", "🚨"),
 ]
 KEYS = [i[0] for i in INDICATORS]
-FRACTIONS = {"growth", "elderly", "foreign", "poverty", "higher_education"}  # 0..1 in counties.json, 0-100 here
+FRACTIONS = {"growth", "elderly", "foreign", "poverty", "higher_education", "non_primary", "tourist", "born_abroad"}  # 0..1 in counties.json, 0-100 here
 COLS = ["code", "name", "province", "ccaa", "population"] + KEYS
 K = {k: 5 + i for i, k in enumerate(KEYS)}
 POP = 4
@@ -82,6 +90,17 @@ def weighted_mean(rows: list[list], key: str) -> float | None:
             num += x * r[POP]
             den += r[POP]
     return num / den if den else None
+
+
+def growth_pct(pairs: list[tuple]) -> float | None:
+    """Growth 2021-2026 in %: sum of 2026 population over sum of 2021 population, minus 1, over the (pop2026, pop2021)
+    pairs that have both (a missing or zero value on either side leaves the municipality out)."""
+    a = b = 0.0
+    for p26, p21 in pairs:
+        if p26 and p21:
+            a += p26
+            b += p21
+    return (a / b - 1) * 100 if b else None
 
 
 def aggregate(rows: list[list], key: str, area: dict[str, float]) -> float | None:
@@ -225,7 +244,7 @@ def build() -> None:
     ccaa_name = {s["fips"]: s["name"] for s in states}
     gm = {g["code"]: g for g in gis}
 
-    rows, area, renamed = [], {}, 0
+    rows, area, renamed, pop21 = [], {}, 0, {}
     for r in counties["rows"]:
         code = r[0]
         if code not in gm:
@@ -233,6 +252,11 @@ def build() -> None:
         name = fix_name(r[1])
         renamed += name != r[1].strip()
         area[code] = r[ci["land_km2"]] or gm[code]["area_km2"]
+        p21 = ((series["municipalities"].get(code) or {}).get("pop") or {}).get("2021")
+        g = r[ci["growth"]]
+        if not p21 and g is not None and r[ci["population"]]:
+            p21 = r[ci["population"]] / (1 + g)  # counties.json growth is a fraction
+        pop21[code] = p21
         rows.append([code, name, r[ci["province"]], gm[code]["ccaa"], r[ci["population"]]] + [to_value(k, r[ci[k]]) for k in KEYS])
 
     by_prov: dict[str, list] = {}
@@ -245,12 +269,14 @@ def build() -> None:
         cc = max(set(ccaas), key=ccaas.count)
         provinces.append({"code": p, "name": PROVINCE_NAME[p], "ccaa": cc, "ccaa_name": ccaa_name.get(cc),
                           "population": sum(r[POP] or 0 for r in rs),
-                          "values": {k: round_value(k, aggregate(rs, k, area)) for k in KEYS}})
+                          "values": {k: round_value(k, aggregate(rs, k, area)) for k in KEYS} | {
+                              "growth": round_value("growth", growth_pct([(r[POP], pop21[r[0]]) for r in rs]))}})
 
     nation = {}
     for k in KEYS:
         xs = [r[K[k]] for r in rows if r[K[k]] is not None]
-        nation[k] = {"value": round_value(k, aggregate(rows, k, area)), "median": round_value(k, statistics.median(xs)),
+        value = growth_pct([(r[POP], pop21[r[0]]) for r in rows]) if k == "growth" else aggregate(rows, k, area)
+        nation[k] = {"value": round_value(k, value), "median": round_value(k, statistics.median(xs)),
                      "q": [round_value(k, quantile(xs, q)) for q in (.05, .25, .5, .75, .95)]}
 
     by_code = series["municipalities"]

@@ -49,6 +49,23 @@ class Numbers(unittest.TestCase):
         self.assertEqual(simple.to_value("age_mean", 43.9), 43.9)
 
 
+class GrowthAndNewIndicators(unittest.TestCase):
+    def test_growth_is_a_ratio_of_sums_not_a_mean_of_rates(self):
+        # 100 -> 110 (+10 %) and 1000 -> 1000 (0 %): ratio of sums is +9.09 %, not 5 %; no 2021 or no 2026 = left out
+        g = simple.growth_pct([(110, 100), (1000, 1000), (50, None), (None, 40), (0, 30)])
+        self.assertAlmostEqual(g, (1110 / 1100 - 1) * 100)
+        self.assertIsNone(simple.growth_pct([(5, None)]))
+
+    def test_new_indicators_keep_nulls_and_scale(self):
+        self.assertEqual(simple.KEYS[9:], ["non_primary", "tourist", "born_abroad", "immigration", "crime_rate"])
+        self.assertEqual(simple.to_value("tourist", 0.0123), 1.23)
+        self.assertEqual(simple.to_value("crime_rate", 45.6), 45.6)
+        self.assertIsNone(simple.to_value("crime_rate", None))
+        rows = [row("01001", 100, crime_rate=40), row("01002", 300, crime_rate=None), row("01003", 100, crime_rate=60)]
+        self.assertAlmostEqual(simple.weighted_mean(rows, "crime_rate"), 50)  # the null municipality is not a zero
+        self.assertIsNone(simple.round_value("crime_rate", simple.weighted_mean([rows[1]], "crime_rate")))
+
+
 class Shapes(unittest.TestCase):
     def test_simplify_keeps_triangle_and_drops_collinear(self):
         tri = [(0, 0), (50, 0), (0, 50)]
