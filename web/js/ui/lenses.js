@@ -57,6 +57,8 @@ const TERRAIN = { id: null, icon: "terrain", emoji: "🗺️", name: "Terreno" }
 const RECENT_KEY = "civusa.recentLenses";
 const DEFAULT_RECENT = ["density", "income", "bachelors"];
 const BINS = 40;
+const SERIES_IDS = new Set(["income", "age", "elderly", "household", "density"]); // lenses that may have a year series
+const PLAY_MS = 900;
 const HOVER_HALF = 0.08; // half-width of the hover band, in ramp units
 const QUANT = 80; // band edges snap to 1/80 of the ramp so tiny mouse moves don't re-render the map
 
@@ -73,7 +75,10 @@ const saveRecent = (ids) => {
 };
 
 /**
- * opts: {lenses (lenses.json), sources (sources.json list), w (prepared world), onPick(lens|null), onBand(band|null)}
+ * opts: {lenses (lenses.json), sources (sources.json list), w (prepared world), onPick(lens|null), onBand(band|null),
+ *   series: {load() -> Promise<lens_series.json>} or null (city maps), onYear() (the shown year changed: recolour)}
+ * The year slider lives in the legend. view() is the lens as shown: the active lens, or a copy with the selected
+ * year's values and the series' shared domain.
  */
 export function initLensDock(opts) {
   const { lenses: lensFile, w } = opts;
@@ -91,6 +96,131 @@ export function initLensDock(opts) {
   recent = recent.slice(0, 3);
   let restoreFocus = null;
   const histCache = new Map();
+
+  // ---- year series (lazy) -------------------------------------------------------------------------------------
+  let seriesState = "idle"; // idle | loading | ready | failed
+  const seriesById = new Map();
+  const viewCache = new Map();
+  let year = null; // null = the normal lens (own domain); a number = that year with the series' shared domain
+  let wantYear = null; // a year asked for (URL) before the series arrived
+  let playTimer = 0;
+
+  const seriesOf = (l) => (l && seriesState === "ready" ? seriesById.get(l.id) || null : null);
+  function rowOf(file, sl, yi, hexes) {
+    const row = sl.values[yi];
+    if (!Array.isArray(file.index)) return row;
+    const out = new Array(hexes).fill(null); // sparse format: one value per entry of file.index
+    for (let j = 0; j < file.index.length; j++) out[file.index[j]] = row[j] ?? null;
+    return out;
+  }
+  function cur() {
+    if (!active) return null;
+    const s = seriesOf(active);
+    if (year == null || !s || !s.years.includes(year)) return active;
+    const key = `${active.id}:${year}`;
+    let v = viewCache.get(key);
+    if (!v) {
+      v = { ...active, name: `${active.name} · ${year}`, values: s.rows[s.years.indexOf(year)], domain: s.domain, _key: key, _year: year };
+      viewCache.set(key, v);
+    }
+    return v;
+  }
+  function ensureSeries() {
+    if (!opts.series || !active || !SERIES_IDS.has(active.id) || seriesState !== "idle") return;
+    seriesState = "loading";
+    Promise.resolve().then(() => opts.series.load()).then((file) => {
+      for (const sl of file?.lenses || []) {
+        const base = byId.get(sl.id);
+        if (!base || !Array.isArray(sl.years) || !Array.isArray(sl.values) || sl.values.length !== sl.years.length
+          || !Array.isArray(sl.domain) || file.hexes !== base.values.length) continue;
+        seriesById.set(sl.id, { years: sl.years, domain: sl.domain, rows: sl.years.map((_, yi) => rowOf(file, sl, yi, file.hexes)) });
+      }
+      if (!seriesById.size) throw new Error("empty series");
+      seriesState = "ready";
+    }).catch(() => { seriesState = "failed"; }).then(() => {
+      if (seriesState === "ready") {
+        const s = seriesOf(active);
+        year = s && wantYear != null && s.years.includes(wantYear) ? wantYear : null;
+        if (year != null) opts.onYear?.();
+      }
+      if (active) renderLegend();
+      showBand();
+    });
+  }
+  const stopPlay = () => {
+    clearInterval(playTimer);
+    playTimer = 0;
+    const b = legend.querySelector(".lg-play");
+    if (b) { b.textContent = "▶"; b.setAttribute("aria-label", "Reproducir años"); }
+  };
+  function setYearValue(y) {
+    year = y;
+    wantYear = y;
+    updateYearUi();
+    opts.onYear?.();
+  }
+  function togglePlay() {
+    const s = seriesOf(active);
+    if (!s) return;
+    if (playTimer) return stopPlay();
+    const last = s.years.length - 1;
+    let i = year == null ? last : s.years.indexOf(year);
+    if (i >= last) { i = 0; setYearValue(s.years[0]); }
+    const b = legend.querySelector(".lg-play");
+    if (b) { b.textContent = "⏸"; b.setAttribute("aria-label", "Pausar"); }
+    playTimer = setInterval(() => {
+      i++;
+      setYearValue(s.years[i]);
+      if (i >= last) stopPlay();
+    }, PLAY_MS);
+  }
+  function yearsHtml(l) {
+    if (!opts.series || !SERIES_IDS.has(l.id)) return "";
+    if (seriesState === "loading" || seriesState === "idle") return `<div class="lg-years"><span class="lg-yload">cargando años…</span></div>`;
+    const s = seriesOf(l);
+    if (!s) return ""; // failed or no series for this lens: the lens keeps working without the control
+    const n = s.years.length;
+    const idx = year == null ? n - 1 : Math.max(0, s.years.indexOf(year));
+    const notes = [l.id === "income" ? "Euros de cada año, sin ajustar por inflación." : "", "Cada municipio se reparte entre sus hexágonos por superficie."].filter(Boolean);
+    return `<div class="lg-years">
+      <div class="lg-yrow"><button type="button" class="lg-play" aria-label="Reproducir años">▶</button>
+        <span class="lg-yend">${s.years[0]}</span>
+        <input type="range" class="lg-yrange" min="0" max="${n - 1}" step="1" value="${idx}" aria-label="Año" aria-valuetext="${s.years[idx]}">
+        <span class="lg-yend">${s.years[n - 1]}</span></div>
+      <div class="lg-yrow2"><span class="lg-year">${s.years[idx]}</span>
+        <button type="button" class="lg-today" ${year == null ? "hidden" : ""} title="Volver al dato actual de la lente">hoy</button></div>
+      <div class="lg-ynote">${notes.map(esc).join(" ")}</div></div>`;
+  }
+  function wireYears() {
+    const rng = legend.querySelector(".lg-yrange");
+    if (!rng) return;
+    const s = seriesOf(active);
+    legend.querySelector(".lg-play").onclick = togglePlay;
+    rng.addEventListener("input", () => { stopPlay(); setYearValue(s.years[+rng.value]); });
+    legend.querySelector(".lg-today").onclick = () => { stopPlay(); setYearValue(null); };
+  }
+  // In-place refresh when only the year changed (keeps focus and an ongoing drag on the range input).
+  function updateYearUi() {
+    if (!active) return;
+    const s = seriesOf(active);
+    const l = cur();
+    const t = legend.querySelector(".title");
+    if (t) t.textContent = l.name;
+    const ticks = legend.querySelector(".ticks");
+    if (ticks) ticks.innerHTML = tickHtml(l);
+    if (s) {
+      const idx = year == null ? s.years.length - 1 : s.years.indexOf(year);
+      const rng = legend.querySelector(".lg-yrange");
+      if (rng) { rng.value = String(idx); rng.setAttribute("aria-valuetext", String(s.years[idx])); }
+      const big = legend.querySelector(".lg-year");
+      if (big) big.textContent = s.years[idx];
+      const td = legend.querySelector(".lg-today");
+      if (td) td.hidden = year == null;
+    }
+    showBand();
+  }
+  const tickHtml = (l) => [0, 0.25, 0.5, 0.75, 1]
+    .map((t, k) => `<span style="left:${t * 100}%;transform:translateX(-${t * 100}%)">${esc(formatLensTick(l, t, k))}</span>`).join("");
 
   // ---- quick row + picker -------------------------------------------------------------------------------------
   // CSS gradient stops: a smooth ramp, or hard-edged blocks for a categorical lens.
@@ -184,7 +314,8 @@ export function initLensDock(opts) {
 
   // ---- legend ---------------------------------------------------------------------------------------------------
   function histogram(lens) {
-    if (histCache.has(lens.id)) return histCache.get(lens.id);
+    const hk = lens._key || lens.id;
+    if (histCache.has(hk)) return histCache.get(hk);
     const counts = new Array(BINS).fill(0);
     const t = lensScale(lens);
     const owner = w.raw.owner;
@@ -198,7 +329,7 @@ export function initLensDock(opts) {
       n++;
     }
     const h = { counts, n, max: Math.max(1, ...counts) };
-    histCache.set(lens.id, h);
+    histCache.set(hk, h);
     return h;
   }
 
@@ -287,11 +418,9 @@ export function initLensDock(opts) {
       legend.innerHTML = "";
       return;
     }
-    const l = active;
-    if (isCategorical(l)) return renderCategoricalLegend(l);
-    const ticks = [0, 0.25, 0.5, 0.75, 1]
-      .map((t, k) => `<span style="left:${t * 100}%;transform:translateX(-${t * 100}%)">${esc(formatLensTick(l, t, k))}</span>`)
-      .join("");
+    if (isCategorical(active)) return renderCategoricalLegend(active);
+    const l = cur();
+    const ticks = tickHtml(l);
     const hib = l.higher_is === "good" ? `<span class="hib good">▲ Más alto es mejor</span>`
       : l.higher_is === "bad" ? `<span class="hib bad">▲ Más alto es peor</span>` : "";
     legend.hidden = false;
@@ -307,6 +436,7 @@ export function initLensDock(opts) {
         <div class="ramp" style="background:linear-gradient(90deg, ${l.ramp.map(esc).join(",")})"><div class="band-mark" hidden></div></div>
       </div>
       <div class="ticks">${ticks}</div>
+      ${yearsHtml(active)}
       ${l.unit ? `<div class="lg-unit">${esc(l.unit)}</div>` : ""}
       <div class="lg-meta">${hib}<span class="src">${l.unit ? esc(l.unit) + " · " : ""}${sourceLine(l)}</span></div>
       <div class="lg-hint" aria-live="polite">Pasa el ratón o arrastra por la escala para mostrar solo ese rango</div>`;
@@ -318,6 +448,7 @@ export function initLensDock(opts) {
       renderLegend();
     };
     wireScale(legend.querySelector(".lg-scale"));
+    wireYears();
     drawHist();
   }
 
@@ -332,7 +463,7 @@ export function initLensDock(opts) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (!active.ramp) return;
     ctx.clearRect(0, 0, cssW, cssH);
-    const h = histogram(active);
+    const h = histogram(cur());
     const stops = active.ramp.map(parseHex);
     const bw = cssW / BINS;
     for (let b = 0; b < BINS; b++) {
@@ -364,10 +495,11 @@ export function initLensDock(opts) {
       mark.hidden = false;
       mark.style.left = a * 100 + "%";
       mark.style.width = Math.max(0.5, (b - a) * 100) + "%";
-      const lo = band[0] <= 0 ? "≤ " + formatLensValue(active, lensValueAt(active, b)) : null;
-      const hi = band[1] >= 1 ? "≥ " + formatLensValue(active, lensValueAt(active, a)) : null;
+      const cl = cur();
+      const lo = band[0] <= 0 ? "≤ " + formatLensValue(cl, lensValueAt(cl, b)) : null;
+      const hi = band[1] >= 1 ? "≥ " + formatLensValue(cl, lensValueAt(cl, a)) : null;
       const txt = band[0] <= 0 && band[1] >= 1 ? "all values"
-        : lo || hi || `${formatLensValue(active, lensValueAt(active, a))} – ${formatLensValue(active, lensValueAt(active, b))}`;
+        : lo || hi || `${formatLensValue(cl, lensValueAt(cl, a))} – ${formatLensValue(cl, lensValueAt(cl, b))}`;
       hint.textContent = `Mostrando solo ${txt}`;
       hint.classList.add("on");
       scale.setAttribute("aria-valuenow", String(Math.round(((a + b) / 2) * 100)));
@@ -449,7 +581,9 @@ export function initLensDock(opts) {
   return {
     // Called by main whenever the lens changes (band is reset by main at the same time).
     render(lens, b = null) {
+      if ((lens?.id ?? null) !== (active?.id ?? null)) { stopPlay(); year = null; wantYear = null; } // a lens change drops the year
       active = lens;
+      if (lens) ensureSeries();
       band = b;
       renderQuick();
       if (!picker.hidden) renderPicker();
@@ -461,6 +595,23 @@ export function initLensDock(opts) {
       recent = [id, ...recent].slice(0, 3);
       saveRecent(recent);
       renderQuick();
+    },
+    /** The lens as shown (selected year applied), for colouring and tooltips. */
+    view: () => cur(),
+    /** Selected year, or null for the normal lens. */
+    get year() { return year; },
+    /** Set the year from outside (URL); null = latest/normal. Applied once the series has loaded. */
+    setYear(y) {
+      const v = y == null || y === "" ? null : Math.round(+y);
+      wantYear = Number.isFinite(v) ? v : null;
+      const s = seriesOf(active);
+      if (!s) return;
+      const nv = wantYear != null && s.years.includes(wantYear) ? wantYear : null;
+      if (nv === year) return;
+      stopPlay();
+      year = nv;
+      updateYearUi();
+      opts.onYear?.();
     },
     openPicker,
     closePicker,

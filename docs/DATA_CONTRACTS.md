@@ -281,6 +281,31 @@ the other county lenses, and the county formulas are shared with counties.json):
   `l-disasters` 🌪️, `l-veterans` 🎖️. Groups `faith` and `hazards` sit between `life` and `land`.
 * `lenses.py` defines `check(web_dir)` (presence, required notes, faith domain, a short coverage summary).
 
+### lens_series.json
+
+Year series of five lenses for the year slider of the national map. Produced by `pipeline/build/lens_series.py`
+(REQUIRES `_world`, `ine_series`); `ine_series` is the interim made by `pipeline/sources/ine_series.py` (run
+`uv run python -m pipeline.sources.ine_series`; it is not a registered source, so `sources.json` does not list it).
+Top level: `{"vintage", "note", "hexes", "lenses"}` plus an optional `"index"`. `note` is Spanish: income is in euros of
+each year, not adjusted for inflation, and each municipality is spread over its hexagons by area.
+
+- `lenses[]`: `{"id", "years", "values", "domain"}`. `id` is the id of the lens in `lenses.json` that it extends:
+  `income` (2015-2024), `age`, `elderly`, `household` (same years) and `density` (2021-2026, census). `years` are ascending
+  integers. `values` has one row per year; each row has one value per hex, in the order of `lenses.json`, `null` for no
+  data (sea, other land, or municipalities with a value holding under 90 % of the hex population). Same units, digits and
+  fractions as the lens (`elderly` is a 0..1 fraction). `domain` is one `[lo, hi]` for all the years (2nd to 98th percentile
+  of the values of every year), so colours are comparable between years; `density` is log scale like its lens.
+- Method: the one of `lenses.py` (ratio of weighted sums over `muni_weights`). Atlas lenses are weighted by the Atlas
+  population of the same year (`adrh_pop`), households by that population over the household size; density uses the
+  census population of the year over land km2. The latest year therefore differs a little from `lenses.json` (income
+  weighted by the 2026 census there): `check` compares them.
+- `hexes`: number of hexes of `lenses.json`. Dense format (default): each row has `hexes` values. If the file would pass
+  1.5 MB, `index` (ascending hex indices that have a value in some lens and year) is present and each row has one value per
+  entry of `index`: `values[y][j]` is the hex `index[j]`; every hex outside `index` is null. A reader must handle both.
+- Interim `ine_series`: `{"years": {field: [years]}, "municipalities": {ine: {field: {year: value}}}}` with fields
+  `income`, `adrh_pop`, `age`, `over65`, `under18`, `household`, `single_households` (percentages as INE gives them,
+  0-100) and `pop` (census). A missing value is absent, never 0.
+
 ## resources.json
 
 ```jsonc
@@ -947,7 +972,9 @@ The page opens a scope with `?scope=<id>`. Every file has the same contract as i
   all its points when it has fewer than 3). Nothing here is an INE count per hexagon. Conservation: the sum of `pop` equals the sum of
   the sections' census population (check fails above 0.1 %).
 * **`lenses.json`**: ids `density`, `income`, `poverty`, `age`, `elderly`, `under18`, `household`, `single_households`, `foreign`,
-  `born_abroad`, `forest`, `developed`; sources `ine_adrh`, `ine_census`, `worldcover`. An INE lens is `null` on a hex when the
+  `born_abroad`, `tourist_share`, `tourist_places`, `forest`, `developed`; sources `ine_adrh`, `ine_census`, `ine_tourist`, `worldcover`.
+  `tourist_*` come from the INE experimental tourist-dwellings table (xlsx, joined by CUSEC; census-2021 sections): a section marked
+  "no tourist dwellings" is a real 0, one under statistical secrecy or absent from the file is `null`. An INE lens is `null` on a hex when the
   sections holding under 90 % of its allocated people lack the value, and on hexes without built-up land (no people). Hexes with no
   people therefore have no data for INE lenses (parks, farmland); `check` measures INE lenses against the populated land hexes.
 * **`cities.json`** = banners: districts (scope `madrid`) or municipalities of 50,000 inhabitants or more (`madrid-auf`).

@@ -122,7 +122,7 @@ async function main() {
     return `${l.id}:${vis}:${sig}`;
   }).join(";");
   const cacheKey = () =>
-    `${state.lens?.id ?? "terrain"}|${state.band ? state.band.join(",") : ""}|${state.showResources ? 1 : 0}|${dpr}|${cam.w}x${cam.h}` +
+    `${state.lens?.id ?? "terrain"}|${dock.year ?? ""}|${state.band ? state.band.join(",") : ""}|${state.showResources ? 1 : 0}|${dpr}|${cam.w}x${cam.h}` +
     `|${state.selectedCity?.id ?? ""}|${resourceFilterSig(state.resourceFilter)}|${layersSig()}`;
 
   // lead: [-1|0|1, -1|0|1], the direction a pan ran off the cache; the new cache reaches further that way (and less
@@ -500,6 +500,15 @@ async function main() {
     lenses: lensFile, sources: sources || [], w,
     onPick: (lens) => setLens(lens),
     onBand: (band) => setBand(band),
+    // Year series for the year slider: national map only, fetched once on first use.
+    series: scopeId() ? null : { load: () => loadJSON("lens_series") },
+    onYear: () => {
+      applyLens(w, dock.view(), state.band);
+      rebuildMinimap();
+      describeCanvas();
+      requestDraw();
+      url.schedule();
+    },
   });
 
   let minimapQueued = false;
@@ -513,8 +522,8 @@ async function main() {
     const changed = lens !== state.lens;
     state.lens = lens;
     state.band = null;
-    applyLens(w, lens, null);
-    dock.render(lens, null);
+    dock.render(lens, null); // first: it drops the year when the lens changes
+    applyLens(w, dock.view(), null);
     rebuildMinimap();
     describeCanvas();
     requestDraw();
@@ -525,7 +534,7 @@ async function main() {
   function setBand(band) {
     if (!state.lens) return;
     state.band = band;
-    applyLens(w, state.lens, band);
+    applyLens(w, dock.view(), band);
     rebuildMinimap();
     requestDraw(); // the cache key includes the band, so the static layer re-renders
   }
@@ -659,6 +668,8 @@ async function main() {
       requestDraw();
     },
   });
+  // Selected year of the year slider (y=2019 next to lens=income); absent = the latest year / normal lens.
+  url.register("y", { get: () => (dock.year != null ? dock.year : null), set: (v) => dock.setYear(v) });
 
   // --- top bar, search, share, help ------------------------------------------------------------------------------
   const setBtn = (id, html) => {
@@ -787,7 +798,7 @@ async function main() {
 
   const shareInfo = () => ({
     renderMap: renderShareMap,
-    lens: state.lens,
+    lens: dock.view(),
     formatValue: (lens, t) => formatLensValue(lens, lensValueAt(lens, t)),
     selection: state.selectedCity ? { kind: "city", name: state.selectedCity.name }
       : state.selectedState != null ? { kind: "state", name: stateName(state.selectedState) } : null,
@@ -950,7 +961,7 @@ async function main() {
     }
     if (city) showCityTooltip(mx, my, city);
     else if (tip != null && tip !== "") showHtmlTooltip(mx, my, tip);
-    else if (cell >= 0) showCellTooltip(mx, my, w, cell, state.lens, state.showResources);
+    else if (cell >= 0) showCellTooltip(mx, my, w, cell, dock.view(), state.showResources);
     else hideTooltip();
     if (events.has("hover")) emitHover(cell, city || w.cityByCell.get(cell) || null, hitResource(mx, my), mx, my, lh);
   }
