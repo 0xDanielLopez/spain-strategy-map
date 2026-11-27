@@ -56,7 +56,7 @@ export function createScatter(host, opts) {
     })).sort((a, b) => b.r - a.r);
     root._count = valid.length;
     cv.setAttribute("aria-label", o.ariaLabel || `Scatter plot of ${valid.length} points: ${o.y?.label || "y"} against ${o.x?.label || "x"}`);
-    hint.textContent = o.brush === false ? "" : `${valid.length.toLocaleString("en-US")} points · drag to select`;
+    hint.textContent = o.brush === false ? "" : `${valid.length.toLocaleString("es-ES")} puntos · arrastra para seleccionar`;
     draw();
   }
 

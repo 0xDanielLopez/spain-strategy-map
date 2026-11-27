@@ -1,96 +1,97 @@
 # Spain Strategy Map
 
-Spain drawn as a 4X strategy-game map: hex terrain, relief and land cover, all from public data.
+España dibujada como un mapa de estrategia 4X: terreno en hexágonos, relieve y cobertura del suelo, todo a partir de
+datos públicos.
 
-**Live map: https://0xdaniellopez.github.io/spain-strategy-map/**
+**Mapa en vivo: https://0xdaniellopez.github.io/spain-strategy-map/**
 
-This project is a fork of [usaciv](https://karpathy.ai/usaciv/) by Andrej Karpathy (MIT licence), which draws the
-United States in the same way. I keep his pipeline, hex grid and map art, and I replace the US data with Spanish and
-European open data.
+Este proyecto es un fork de [usaciv](https://karpathy.ai/usaciv/), de Andrej Karpathy (licencia MIT), que dibuja
+Estados Unidos de la misma forma. Mantengo su pipeline, su rejilla hexagonal y el arte del mapa, y cambio los datos de
+EE. UU. por datos abiertos de España y de Europa.
 
-## Status
+## Estado
 
-Phase F0: the base map only.
+Fase F0: solo el mapa base.
 
-- Hexes of 10 km radius (about 260 km2 each, about 1,950 land hexes for Spain).
-- Land and water, relief (flat, hills, mountains, peaks) and land cover for every hex.
-- The 19 autonomous communities (17 communities plus Ceuta and Melilla) as the top level, and the 8,132 municipalities
-  as the second level.
-- The Canary Islands in an inset frame, like on printed maps of Spain.
-- Ceuta, Melilla and the small islands get at least one hex each. These hexes are a cartographic exception: one hex
-  is much larger than Ceuta or Melilla.
+- Hexágonos de 10 km de radio (unos 260 km2 cada uno, unos 1.950 de tierra en España).
+- Tierra y agua, relieve (llano, colinas, montañas, picos) y cobertura del suelo en cada hexágono.
+- Las 19 comunidades y ciudades autónomas como primer nivel y los 8.132 municipios como segundo.
+- Canarias en un recuadro, como en los mapas impresos de España.
+- Ceuta, Melilla y las islas pequeñas tienen al menos un hexágono cada una. Es una excepción cartográfica: un
+  hexágono es mucho más grande que Ceuta o Melilla.
 
-There are no statistics, cities, lenses or resources yet. The UI text still comes from the US version in places.
+Todavía no hay estadísticas, ciudades, lentes ni recursos.
 
-## Run it
+## Cómo ejecutarlo
 
-You need Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). The pipeline uses the standard library only.
+Necesitas Python 3.11 o superior y [uv](https://docs.astral.sh/uv/). El pipeline usa solo la biblioteca estándar.
 
 ```bash
-uv run python -m pipeline all       # download, process, build and check (the first run downloads about 200 MB)
-uv run python -m pipeline serve     # open http://127.0.0.1:8765
+uv run python -m pipeline all       # descarga, procesa, construye y comprueba (la primera vez baja unos 200 MB)
+uv run python -m pipeline serve     # abre http://127.0.0.1:8765
 ```
 
-`uv run python -m pipeline all --offline` rebuilds from the cached downloads without the network.
-`uv run python -m unittest discover -s tests` runs the tests.
+`uv run python -m pipeline all --offline` reconstruye con las descargas en caché, sin red.
+`uv run python -m unittest discover -s tests` ejecuta los tests.
 
-## Data sources and licences
+## Fuentes de datos y licencias
 
-| Data | Publisher | Licence | Used for |
+| Datos | Editor | Licencia | Uso |
 |---|---|---|---|
-| [LAU 2024, 1:1 million](https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/local-administrative-units) | Eurostat GISCO | © EuroGeographics for the administrative boundaries. Non-commercial use, with this notice visible on the map | Land and water, municipalities, autonomous communities |
-| [ESA WorldCover 10 m 2021 v200](https://esa-worldcover.org/) | European Space Agency | CC BY 4.0. © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium. Zanaga et al. 2022, doi:10.5281/zenodo.7254221 | Land cover of each hex |
-| [ETOPO1](https://www.ncei.noaa.gov/products/etopo-global-relief-model) via NOAA ERDDAP | NOAA NCEI | Public domain | Relief, sea depth |
-| [Natural Earth 1:50m](https://www.naturalearthdata.com/) | Natural Earth | Public domain | Neighbouring countries, lakes, rivers |
+| [LAU 2024, 1:1 millón](https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/local-administrative-units) | Eurostat GISCO | © EuroGeographics para los límites administrativos. Uso no comercial, con este aviso visible en el mapa | Tierra y agua, municipios, comunidades autónomas |
+| [ESA WorldCover 10 m 2021 v200](https://esa-worldcover.org/) | Agencia Espacial Europea | CC BY 4.0. © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium. Zanaga et al. 2022, doi:10.5281/zenodo.7254221 | Cobertura del suelo de cada hexágono |
+| [ETOPO1](https://www.ncei.noaa.gov/products/etopo-global-relief-model) vía NOAA ERDDAP | NOAA NCEI | Dominio público | Relieve, profundidad del mar |
+| [Natural Earth 1:50m](https://www.naturalearthdata.com/) | Natural Earth | Dominio público | Países vecinos, lagos, ríos |
 
-The map page shows the attribution line in a corner, as the GISCO terms require. The pipeline writes the URL,
-sha256, size and date of every downloaded file to `web/data/sources.json`.
+El mapa muestra la línea de atribución en una esquina, como piden las condiciones de GISCO. El pipeline guarda la URL,
+el sha256, el tamaño y la fecha de cada fichero descargado en `web/data/sources.json`, y `web/data/world.json` lleva
+la fuente y la licencia de cada campo.
 
-The province to autonomous community table is written by hand from the INE codes.
+La tabla de provincias a comunidades autónomas la escribí a mano a partir de los códigos del INE.
 
-### What the land cover means
+### Qué significa la cobertura del suelo
 
-WorldCover has 11 classes. I read the smallest overview of each 3 x 3 degree tile (pixels of about 600 m) and sample
-it every 1 km inside each hex. Some classes do not mean the same as on the US map:
+WorldCover tiene 11 clases. Leo la vista general más pequeña de cada tesela de 3 x 3 grados (píxeles de unos 600 m) y
+la muestreo cada 1 km dentro de cada hexágono. Algunas clases no significan lo mismo que en el mapa de EE. UU.:
 
-- Olive groves, vineyards and other woody crops can show as tree cover or shrubland.
-- Greenhouses (for example in Almería) show as built-up.
-- Pastures are inside grassland: there is no separate pasture share.
+- Los olivares, los viñedos y otros cultivos leñosos pueden salir como arbolado o matorral.
+- Los invernaderos (por ejemplo, en Almería) salen como construido.
+- Los pastos están dentro del pastizal: no hay una cuota aparte de pastos.
 
-## Licence
+## Licencia
 
-- **Code**: MIT, see [LICENSE](LICENSE). The original code is © 2026 Andrej Karpathy; my changes are © 2026 Daniel
+- **Código**: MIT, ver [LICENSE](LICENSE). El código original es © 2026 Andrej Karpathy; mis cambios son © 2026 Daniel
   López.
-- **Data files in `web/data/`**: they are derived from the sources above and keep their terms. The hex to
-  municipality and hex to autonomous community data come from GISCO boundaries: non-commercial use only, with the
-  EuroGeographics notice. They are not under the MIT licence. Raw downloads are not in this repository.
+- **Ficheros de datos en `web/data/`**: derivan de las fuentes de arriba y mantienen sus condiciones. Los datos de
+  hexágono a municipio y de hexágono a comunidad autónoma vienen de los límites de GISCO: solo uso no comercial, con
+  el aviso de EuroGeographics. No están bajo la licencia MIT. Las descargas en bruto no están en este repositorio.
 
-## How it works
+## Cómo funciona
 
 ```
 pipeline/
-  core/       cached downloads with a provenance manifest (fetch.py), the Source base class,
-              projection with the Canary Islands inset (geo.py), hex grid (hexgrid.py), atomic JSON IO (store.py)
-  sources/    one module per data source: fetch() raw files, process() -> data/interim/<id>.json
-  build/      builders that put the sources onto the hex map -> web/data/*.json
-  check.py    validates web/data against docs/DATA_CONTRACTS.md and prints a data-quality report
-tests/        unittest suite (standard library only)
-web/          the map app (ES modules, no build step); web/data holds the generated JSON
-docs/         DATA_CONTRACTS.md: the shape of every web/data file
+  core/       descargas en caché con un manifiesto de procedencia (fetch.py), la clase base Source,
+              proyección con el recuadro de Canarias (geo.py), rejilla hexagonal (hexgrid.py), E/S JSON atómica (store.py)
+  sources/    un módulo por fuente de datos: fetch() baja los ficheros, process() -> data/interim/<id>.json
+  build/      constructores que llevan las fuentes al mapa de hexágonos -> web/data/*.json
+  check.py    valida web/data contra docs/DATA_CONTRACTS.md y escribe un informe de calidad de datos
+tests/        tests con unittest (solo biblioteca estándar)
+web/          la aplicación del mapa (módulos ES, sin paso de compilación); web/data guarda el JSON generado
+docs/         DATA_CONTRACTS.md: la forma de cada fichero de web/data (en inglés, como el código)
 ```
 
-The flow is always source -> interim -> builder -> web/data. The map uses an Albers equal-area projection of Spain
-(standard parallels 36 and 44 degrees, centre 40 N 3 W). The Canary Islands use their own Albers projection and move
-into the inset frame.
+El flujo es siempre fuente -> intermedio -> constructor -> web/data. El mapa usa una proyección Albers de áreas
+iguales para España (paralelos estándar 36 y 44 grados, centro 40 N 3 O). Canarias usa su propia proyección Albers y
+se traslada al recuadro.
 
-### Commands
+### Comandos
 
 ```bash
-uv run python -m pipeline list                        # sources and builders (in build order)
-uv run python -m pipeline fetch [source ...]          # download raw files (cached; --force re-downloads)
-uv run python -m pipeline process [source ...]        # raw -> data/interim/<source>.json
-uv run python -m pipeline build [builder ...]         # interim -> web/data; up-to-date builders are skipped
-uv run python -m pipeline check                       # validate web/data (exit 1 on FAIL)
+uv run python -m pipeline list                        # fuentes y constructores (en orden de construcción)
+uv run python -m pipeline fetch [fuente ...]          # baja los ficheros (en caché; --force vuelve a bajarlos)
+uv run python -m pipeline process [fuente ...]        # bruto -> data/interim/<fuente>.json
+uv run python -m pipeline build [constructor ...]     # intermedio -> web/data; se salta lo que está al día
+uv run python -m pipeline check                       # valida web/data (sale con 1 si hay FAIL)
 uv run python -m pipeline all [--offline]             # fetch + process + build + check
-uv run python -m pipeline serve [--port 8765]         # serve web/
+uv run python -m pipeline serve [--port 8765]         # sirve web/
 ```

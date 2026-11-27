@@ -217,7 +217,7 @@ export function histogram(host, opts) {
   const tk = opts.log ? logTicks(d0, d1) : ticks(d0, d1, 5);
   const fmt = opts.fmt || ((v) => String(v));
   const color = opts.color || "#c9a45c";
-  root.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.label || "Histogram")}">
+  root.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.label || "Histograma")}">
     ${bins.map((bn) => {
       const v = opts.weighted ? bn.weight : bn.count;
       const h = (v / ymax) * (H - m.t - m.b);

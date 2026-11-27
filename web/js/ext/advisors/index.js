@@ -14,25 +14,25 @@ import { esc, el } from "./core/util.js";
 import { icon } from "../../ui/icon.js";
 
 export const ADVISORS = [
-  { id: "energy", name: "Energy & Resources", role: "Minister of Power", color: "#d98a2b", dark: "#3a1f08", blurb: "Where the power comes from, and what lies underground.", load: () => import("./views/energy.js") },
-  { id: "economy", name: "Economy", role: "Treasurer", color: "#c9a43a", dark: "#3a2c08", blurb: "Who makes what: GDP by industry and the metros that lead it.", load: () => import("./views/economy.js") },
-  { id: "people", name: "People", role: "Keeper of the Census", color: "#c46a4f", dark: "#3a140c", blurb: "Where people live, where they are moving, how old and how new.", load: () => import("./views/people.js") },
-  { id: "prosperity", name: "Prosperity & Housing", role: "Steward of the Hearth", color: "#3f9c82", dark: "#082a22", blurb: "Incomes, home prices, rents and who is being left behind.", load: () => import("./views/prosperity.js") },
-  { id: "knowledge", name: "Knowledge", role: "Royal Scholar", color: "#4a86d6", dark: "#0a1c3a", blurb: "Degrees, broadband and the science workforce.", load: () => import("./views/knowledge.js") },
-  { id: "land", name: "Land", role: "Surveyor General", color: "#6e9a3c", dark: "#18280a", blurb: "Forest, farmland, desert and city: what covers the country.", load: () => import("./views/land.js") },
-  { id: "military", name: "Military", role: "General", color: "#8796ab", dark: "#141b26", blurb: "Bases and ranges, troops and defense dollars by state, and where veterans live.", load: () => import("./views/military.js") },
-  { id: "commerce", name: "Commerce", role: "Master of Trade", color: "#2fa4b8", dark: "#062630", blurb: "The great freight routes between metros, and the busiest ports and airports.", load: () => import("./views/commerce.js") },
-  { id: "culture", name: "Culture", role: "Keeper of Wonders", color: "#c25b9a", dark: "#2e0c22", blurb: "Wonders of the land, faith and wellbeing, and the disasters places endure.", load: () => import("./views/culture.js") },
-  { id: "explorer", name: "Explorer", role: "Cartographer", color: "#9a7bc9", dark: "#1e1236", blurb: "Slice and dice every number: any level, any columns, any chart.", load: () => import("./views/explorer.js") },
+  { id: "energy", name: "Energía y recursos", role: "Ministro de Energía", color: "#d98a2b", dark: "#3a1f08", blurb: "De dónde viene la energía y qué hay bajo tierra.", load: () => import("./views/energy.js") },
+  { id: "economy", name: "Economía", role: "Tesorero", color: "#c9a43a", dark: "#3a2c08", blurb: "Quién produce qué: el PIB por sector y las áreas urbanas que lo lideran.", load: () => import("./views/economy.js") },
+  { id: "people", name: "Población", role: "Guardián del Censo", color: "#c46a4f", dark: "#3a140c", blurb: "Dónde vive la gente, adónde se muda, qué edad tiene y cuánto lleva allí.", load: () => import("./views/people.js") },
+  { id: "prosperity", name: "Prosperidad y vivienda", role: "Mayordomo del Hogar", color: "#3f9c82", dark: "#082a22", blurb: "Rentas, precios de la vivienda, alquileres y quién se queda atrás.", load: () => import("./views/prosperity.js") },
+  { id: "knowledge", name: "Conocimiento", role: "Sabio Real", color: "#4a86d6", dark: "#0a1c3a", blurb: "Titulaciones, banda ancha y empleo científico.", load: () => import("./views/knowledge.js") },
+  { id: "land", name: "Territorio", role: "Agrimensor General", color: "#6e9a3c", dark: "#18280a", blurb: "Bosque, cultivo, desierto y ciudad: qué cubre el país.", load: () => import("./views/land.js") },
+  { id: "military", name: "Defensa", role: "General", color: "#8796ab", dark: "#141b26", blurb: "Bases y campos de maniobras, tropas y gasto en defensa por comunidad, y dónde viven los veteranos.", load: () => import("./views/military.js") },
+  { id: "commerce", name: "Comercio", role: "Maestre de Comercio", color: "#2fa4b8", dark: "#062630", blurb: "Las grandes rutas de mercancías entre áreas urbanas, y los puertos y aeropuertos más activos.", load: () => import("./views/commerce.js") },
+  { id: "culture", name: "Cultura", role: "Guardián de Maravillas", color: "#c25b9a", dark: "#2e0c22", blurb: "Maravillas del territorio, fe y bienestar, y los desastres que sufren los lugares.", load: () => import("./views/culture.js") },
+  { id: "explorer", name: "Explorador", role: "Cartógrafo", color: "#9a7bc9", dark: "#1e1236", blurb: "Disecciona cada número: cualquier nivel, columnas y gráfico.", load: () => import("./views/explorer.js") },
 ];
 const byId = new Map(ADVISORS.map((a) => [a.id, a]));
 // The council picker groups its advisors (any advisor not listed here is added to the last group).
 const COUNCIL = (() => {
   const g = [
-    { label: "Wealth and work", ids: ["economy", "prosperity", "commerce", "energy"] },
-    { label: "People and land", ids: ["people", "knowledge", "culture", "land"] },
-    { label: "Defense", ids: ["military"] },
-    { label: "Your own questions", ids: ["explorer"] },
+    { label: "Riqueza y trabajo", ids: ["economy", "prosperity", "commerce", "energy"] },
+    { label: "Personas y territorio", ids: ["people", "knowledge", "culture", "land"] },
+    { label: "Defensa", ids: ["military"] },
+    { label: "Tus propias preguntas", ids: ["explorer"] },
   ];
   const listed = new Set(g.flatMap((x) => x.ids));
   g[g.length - 1].ids.push(...ADVISORS.filter((a) => !listed.has(a.id)).map((a) => a.id));
@@ -69,7 +69,7 @@ export function install(app) {
 
   // --- top-bar button ---------------------------------------------------------------------------------------------
   const btn = app.ui.addTopButton({
-    id: "btn-advisors", icon: "g-people", label: "Advisors", title: "Advisors: explore the data behind the map",
+    id: "btn-advisors", icon: "g-people", label: "Consejeros", title: "Consejeros: explora los datos que hay tras el mapa",
     onClick: () => (app.mode === "advisor" ? app.setMode(null) : app.setMode("advisor", { id: lastId })),
   });
   if (btn) {
@@ -80,7 +80,7 @@ export function install(app) {
 
   // --- dock shell -------------------------------------------------------------------------------------------------
   function shell() {
-    dock = app.ui.dock("left", { width: dockW(), label: "Advisors" });
+    dock = app.ui.dock("left", { width: dockW(), label: "Consejeros" });
     if (dock.querySelector(".adv-root")) return dock.querySelector(".adv-root");
     dock.innerHTML = "";
     dock.classList.add("adv-dock");
@@ -88,9 +88,9 @@ export function install(app) {
     root.innerHTML = `
       <div class="adv-grip" aria-hidden="true"></div>
       <header class="adv-head">
-        <button type="button" class="adv-council-btn" data-adv="council" title="All advisors">${icon("g-people", "👥", { size: 14 })}<span>Council</span></button>
-        <nav class="adv-tabs" role="tablist" aria-label="Advisors">${ADVISORS.map((a) => `<button type="button" role="tab" data-adv="${a.id}" aria-selected="false" title="${esc(`${a.name}: ${a.role}`)}" style="--adv:${a.color}">${emblem(a, 30)}<span class="sr-only">${esc(a.name)}</span></button>`).join("")}</nav>
-        <button type="button" class="icon-btn adv-close" aria-label="Close the advisors (Esc)" title="Close (Esc)">${icon("close", "✕", { size: 12 })}</button>
+        <button type="button" class="adv-council-btn" data-adv="council" title="Todos los consejeros">${icon("g-people", "👥", { size: 14 })}<span>Consejo</span></button>
+        <nav class="adv-tabs" role="tablist" aria-label="Consejeros">${ADVISORS.map((a) => `<button type="button" role="tab" data-adv="${a.id}" aria-selected="false" title="${esc(`${a.name}: ${a.role}`)}" style="--adv:${a.color}">${emblem(a, 30)}<span class="sr-only">${esc(a.name)}</span></button>`).join("")}</nav>
+        <button type="button" class="icon-btn adv-close" aria-label="Cerrar los consejeros (Esc)" title="Cerrar (Esc)">${icon("close", "✕", { size: 12 })}</button>
       </header>
       <div class="adv-main" tabindex="-1"></div>`;
     dock.appendChild(root);
@@ -164,13 +164,13 @@ export function install(app) {
       main.querySelectorAll(".adv-card").forEach((c) => c.addEventListener("click", () => switchTo(c.dataset.adv)));
       return;
     }
-    main.innerHTML = `${titleHtml(adv)}<div class="adv-body"><div class="adv-loading">The ${esc(adv.role.toLowerCase())} is gathering the figures…</div></div>`;
+    main.innerHTML = `${titleHtml(adv)}<div class="adv-body"><div class="adv-loading">Tu ${esc(adv.role.toLowerCase())} está reuniendo las cifras…</div></div>`;
     let mod;
     try {
       [mod] = await Promise.all([adv.load(), ensureData()]);
     } catch (err) {
       console.error(err);
-      if (my === token) main.querySelector(".adv-body").innerHTML = `<p class="adv-empty pad">This advisor could not load (${esc(err.message || err)}).</p>`;
+      if (my === token) main.querySelector(".adv-body").innerHTML = `<p class="adv-empty pad">No se pudo cargar este consejero (${esc(err.message || err)}).</p>`;
       return;
     }
     if (my !== token || app.mode !== "advisor") return;
@@ -218,7 +218,7 @@ export function install(app) {
       a.api = (await mod.mount(ctx)) || {};
     } catch (err) {
       console.error(`advisor "${adv.id}" failed`, err);
-      body.insertAdjacentHTML("beforeend", `<p class="adv-empty pad">Something went wrong drawing this advisor.</p>`);
+      body.insertAdjacentHTML("beforeend", `<p class="adv-empty pad">Algo falló al dibujar este consejero.</p>`);
       a.api = {};
     }
     loading?.remove();
@@ -244,11 +244,11 @@ export function install(app) {
   }
 
   function councilHtml() {
-    return `<div class="adv-title council"><div class="adv-titles"><div class="adv-kind">Your council</div><h2>Advisors</h2>
-      <p>Each advisor opens a dashboard on one part of the real economy. Hover anything to see it on the map; hover the map to find it in the charts; click to drill in.</p></div></div>
+    return `<div class="adv-title council"><div class="adv-titles"><div class="adv-kind">Tu consejo</div><h2>Consejeros</h2>
+      <p>Cada consejero abre un panel sobre una parte de la economía real. Pasa el ratón por cualquier elemento para verlo en el mapa; pásalo por el mapa para encontrarlo en los gráficos; haz clic para profundizar.</p></div></div>
       ${COUNCIL.map((g) => `<h4 class="adv-council-h">${esc(g.label)}</h4><div class="adv-council">${g.ids.map((id) => byId.get(id)).filter(Boolean).map((a) => `<button type="button" class="adv-card" data-adv="${a.id}" style="--adv:${a.color}">
         ${emblem(a, 48)}<span class="t"><span class="r">${esc(a.role)}</span><b>${esc(a.name)}</b><span class="d">${esc(a.blurb)}</span></span></button>`).join("")}</div>`).join("")}
-      <p class="adv-note pad">All figures are public data: Census ACS and population estimates, BEA GDP, BLS QCEW, EIA and MSHA site lists, USGS land cover, DoD installation and spending files, FHWA freight flows, USACE and FAA traffic, NPS visits, NSF research spending, the U.S. Religion Census, CDC PLACES, FEMA and NOAA. Each dashboard lists its sources and caveats at the bottom.</p>`;
+      <p class="adv-note pad">Todas las cifras son datos públicos. Cada panel muestra sus fuentes y advertencias al final.</p>`;
   }
 
   // --- map → dashboard --------------------------------------------------------------------------------------------

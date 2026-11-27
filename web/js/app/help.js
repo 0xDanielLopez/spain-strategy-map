@@ -5,24 +5,24 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent |
 const MOD = isMac ? "⌘" : "Ctrl";
 
 const ROWS = [
-  ["Move", [
-    [["Drag", "←↑→↓", "WASD"], "Pan the map"],
-    [["Scroll", "+", "–"], "Zoom in and out"],
-    [["Double-click"], "Zoom in on a spot"],
-    [["Two fingers"], "Pinch to zoom, drag to pan (touch)"],
-    [["Minimap"], "Click or drag to jump"],
+  ["Moverse", [
+    [["Arrastrar", "←↑→↓", "WASD"], "Desplazar el mapa"],
+    [["Rueda", "+", "–"], "Acercar y alejar"],
+    [["Doble clic"], "Acercar a un punto"],
+    [["Dos dedos"], "Pellizca para hacer zoom, arrastra para desplazar (táctil)"],
+    [["Minimapa"], "Haz clic o arrastra para saltar"],
   ]],
-  ["Explore", [
-    [["Click city"], "Open the city screen"],
-    [["Click land"], "Open that state"],
-    [["/", `${MOD} K`], "Search cities and states"],
-    [["L", "Shift L"], "Next / previous lens"],
-    [["Legend"], "Hover or drag the scale to show only that range"],
-    [["R"], "Show or hide resources"],
+  ["Explorar", [
+    [["Clic en ciudad"], "Abrir la pantalla de la ciudad"],
+    [["Clic en tierra"], "Abrir esa comunidad"],
+    [["/", `${MOD} K`], "Buscar comunidades y municipios"],
+    [["L", "Shift L"], "Lente siguiente / anterior"],
+    [["Leyenda"], "Pasa el ratón o arrastra por la escala para mostrar solo ese rango"],
+    [["R"], "Mostrar u ocultar recursos"],
   ]],
-  ["Panels", [
-    [["?"], "This help"],
-    [["Esc"], "Close help, search, Almanac, then the panel"],
+  ["Paneles", [
+    [["?"], "Esta ayuda"],
+    [["Esc"], "Cerrar ayuda, búsqueda, Almanaque y después el panel"],
   ]],
 ];
 
@@ -32,15 +32,15 @@ export function initHelp() {
   const card = modal.querySelector(".help-card");
   let restore = null;
   card.innerHTML = `
-    <button class="icon-btn help-close" data-close aria-label="Close help">${icon("close", "✕", { size: 13 })}</button>
-    <h2 id="help-title">${icon("help", "?", { size: 22 })}<span>Controls</span></h2>
+    <button class="icon-btn help-close" data-close aria-label="Cerrar la ayuda">${icon("close", "✕", { size: 13 })}</button>
+    <h2 id="help-title">${icon("help", "?", { size: 22 })}<span>Controles</span></h2>
     <div class="help-cols">${ROWS.map(([title, rows]) => `
       <section><h3>${title}</h3>${rows.map(([keys, what]) => `
         <div class="help-row"><span class="keys">${keys.map((k) => `<kbd>${k}</kbd>`).join("")}</span><span>${what}</span></div>`).join("")}
       </section>`).join("")}</div>
-    <p class="help-foot">Every number traces back to public data: open the <b>Almanac</b> for sources.
-      The link in the address bar always reopens this exact view.
-      Source code: <a href="https://github.com/0xDanielLopez/spain-strategy-map" target="_blank" rel="noopener">github.com/0xDanielLopez/spain-strategy-map</a> (code MIT, data under each source's terms; see the README).<br>Based on usaciv by Andrej Karpathy (MIT).</p>`;
+    <p class="help-foot">Cada número sale de datos públicos: abre el <b>Almanaque</b> para ver las fuentes.
+      El enlace de la barra de direcciones reabre siempre esta misma vista.
+      Código fuente: <a href="https://github.com/0xDanielLopez/spain-strategy-map" target="_blank" rel="noopener">github.com/0xDanielLopez/spain-strategy-map</a> (código MIT, datos según los términos de cada fuente; consulta el README).<br>Basado en usaciv de Andrej Karpathy (MIT).</p>`;
 
   const close = () => {
     if (modal.hidden) return;

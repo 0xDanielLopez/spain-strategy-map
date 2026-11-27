@@ -22,14 +22,14 @@ PRODUCES = ["_world", "world.json"]
 # Licence and attribution of the data in this file (web/data/world.json). The GISCO-derived parts (owner, county,
 # states, counties, land/water) are for non-commercial use only and are not covered by the code's MIT licence.
 ATTRIBUTION = [
-    {"data": "owner, county, states, counties, land and water",
-     "source": "Eurostat GISCO, Local Administrative Units (LAU) 2024",
-     "license": "© EuroGeographics for the administrative boundaries. Non-commercial use only, with this notice visible; not under the MIT licence."},
-    {"data": "cover, pct",
+    {"data": "propietario, municipio, comunidades, municipios, tierra y agua",
+     "source": "Eurostat GISCO, Unidades Administrativas Locales (LAU) 2024",
+     "license": "© EuroGeographics para los límites administrativos. Solo uso no comercial, con este aviso visible; fuera de la licencia MIT."},
+    {"data": "cobertura, porcentajes",
      "source": "ESA WorldCover 10 m 2021 v200",
      "license": "CC BY 4.0. © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium."},
-    {"data": "elev, elev_max, relief, sea depth", "source": "NOAA ETOPO1 via ERDDAP", "license": "Public domain"},
-    {"data": "foreign land, lakes, rivers", "source": "Natural Earth 1:50m v5.1.2", "license": "Public domain"},
+    {"data": "altitud, altitud máxima, relieve, profundidad marina", "source": "NOAA ETOPO1 vía ERDDAP", "license": "Dominio público"},
+    {"data": "tierra extranjera, lagos, ríos", "source": "Natural Earth 1:50m v5.1.2", "license": "Dominio público"},
 ]
 
 HEX_RADIUS_KM = 10.0
@@ -53,55 +53,56 @@ LAND, OCEAN, COAST, LAKE = range(4)
 TIDAL_SEA_SHARE = 0.5  # share of ETOPO samples below 0 m that keeps a sea-centred hex as water
 COAST_DEPTH_M = -200
 WATER_TABLE = [
-    {"id": LAND, "name": "Land", "rule": "At least 4 of the hex's 7 sample points (centre + 6) fall on a Spanish municipality or a Natural Earth country outline, unless the centre is sea and the ETOPO1 mean is at or below sea level, or at least half its ETOPO1 samples are (tidal bays stay water). A few places too small or too isolated to win a hex (Ceuta, Melilla, each island) are forced to land."},
-    {"id": OCEAN, "name": "Ocean", "color": "#1b4266", "rule": "Sea deeper than 200 m and not next to land."},
-    {"id": COAST, "name": "Coast", "color": "#2d6d97", "rule": "Sea next to a land hex, or shallower than 200 m (ETOPO1 mean)."},
-    {"id": LAKE, "name": "Lake", "color": "#3a80b0", "rule": "Water hex (most of its 7 sample points off land) with Natural Earth 1:50m lake points that outnumber sea points, or above sea level."},
+    {"id": LAND, "name": "Tierra", "rule": "Al menos 4 de los 7 puntos de muestra del hexágono (centro + 6) caen en un municipio español o en el contorno de un país de Natural Earth, salvo que el centro sea mar y la media de ETOPO1 esté a nivel del mar o por debajo, o que al menos la mitad de sus muestras de ETOPO1 lo estén (las bahías de marea siguen siendo agua). Unos pocos lugares demasiado pequeños o aislados para ganar un hexágono (Ceuta, Melilla, cada isla) se fuerzan a tierra."},
+    {"id": OCEAN, "name": "Océano", "color": "#1b4266", "rule": "Mar de más de 200 m de profundidad y sin tierra al lado."},
+    {"id": COAST, "name": "Costa", "color": "#2d6d97", "rule": "Mar junto a un hexágono de tierra, o de menos de 200 m de profundidad (media de ETOPO1)."},
+    {"id": LAKE, "name": "Lago", "color": "#3a80b0", "rule": "Hexágono de agua (la mayoría de sus 7 puntos fuera de tierra) con puntos de lago de Natural Earth 1:50m más numerosos que los de mar, o por encima del nivel del mar."},
 ]
 
 WATER_NOTE = (
-    "The GISCO LAU 1:1M municipality outlines and the Natural Earth 1:50m country and lake outlines don't meet exactly. "
-    "A sea hex whose ETOPO1 mean is above sea level (and under half of its samples below it) becomes land when at least "
-    "4 of its 6 neighbours are land, or when it touches both Spanish and foreign land; it takes the neighbours' majority "
-    "owner. Narrow reservoirs that cover less than half a hex are land, and their river is drawn through them. Tidal "
-    "bays stay water when the hex centre is sea and its ETOPO1 mean is at or below sea level or at least half of its "
-    "ETOPO1 samples are. A sea hex's elevation is the mean of its ETOPO1 samples below sea level (its water depth). "
-    "ETOPO1 samples come every ~3.7 km."
+    "Los contornos municipales de GISCO LAU 1:1M y los contornos de países y lagos de Natural Earth 1:50m no encajan del todo. "
+    "Un hexágono de mar cuya media de ETOPO1 está por encima del nivel del mar (y con menos de la mitad de sus muestras por "
+    "debajo) pasa a ser tierra cuando al menos 4 de sus 6 vecinos son tierra, o cuando toca a la vez tierra española y "
+    "extranjera; toma el propietario mayoritario de sus vecinos. Los embalses estrechos que cubren menos de medio hexágono "
+    "son tierra, y su río se dibuja a través de ellos. Las bahías de marea siguen siendo agua cuando el centro del hexágono "
+    "es mar y su media de ETOPO1 está a nivel del mar o por debajo, o al menos la mitad de sus muestras de ETOPO1 lo están. "
+    "La altitud de un hexágono de mar es la media de sus muestras de ETOPO1 bajo el nivel del mar (su profundidad). "
+    "Las muestras de ETOPO1 llegan cada ~3,7 km."
 )
 
 FLAT, HILLS, MOUNTAINS, PEAKS = range(4)
 LAND_MIN_ALT_M = -100  # ETOPO samples below this inside a land hex are treated as sea floor
 HILLS_STD_M, MOUNTAINS_STD_M = 60, 180  # usaciv used 85/260 on 25 km hexes; 10 km hexes have less spread
 RELIEF_TABLE = [
-    {"id": FLAT, "name": "Flat", "rule": f"Elevation standard deviation inside the hex under {HILLS_STD_M} m."},
-    {"id": HILLS, "name": "Hills", "rule": f"Elevation standard deviation ≥ {HILLS_STD_M} m."},
-    {"id": MOUNTAINS, "name": "Mountains", "rule": f"Elevation standard deviation ≥ {MOUNTAINS_STD_M} m, or mean elevation ≥ 2,300 m."},
-    {"id": PEAKS, "name": "Peaks", "rule": "Mean elevation ≥ 2,700 m (alpine)."},
+    {"id": FLAT, "name": "Llano", "rule": f"Desviación típica de la altitud dentro del hexágono inferior a {HILLS_STD_M} m."},
+    {"id": HILLS, "name": "Colinas", "rule": f"Desviación típica de la altitud ≥ {HILLS_STD_M} m."},
+    {"id": MOUNTAINS, "name": "Montañas", "rule": f"Desviación típica de la altitud ≥ {MOUNTAINS_STD_M} m, o altitud media ≥ 2.300 m."},
+    {"id": PEAKS, "name": "Picos", "rule": "Altitud media ≥ 2.700 m (alta montaña)."},
 ]
 RELIEF_NOTE = (
-    "From ETOPO1 samples (one every ~3.7 km, about 25 per hex) with altitude ≥ -100 m, so bays and sea floor don't "
-    "count; all samples are used if none qualify. A hex that is mostly flat lowland with a range at one edge is eased "
-    "one class. Water hexes are always flat."
+    "A partir de muestras de ETOPO1 (una cada ~3,7 km, unas 25 por hexágono) con altitud ≥ -100 m, para que las bahías y "
+    "el fondo marino no cuenten; si ninguna cumple, se usan todas. Un hexágono que es sobre todo llanura baja con una "
+    "sierra en un borde baja una clase. Los hexágonos de agua son siempre llanos."
 )
 
 URBAN_MIN_PCT = 20
 # id, key, name, colour, WorldCover codes, rule. Ids are fixed by docs/DATA_CONTRACTS.md (ids 1, 2 and 6 are unused).
 COVER = [
-    (3, "forest_mixed", "Tree cover", "#43703f", [10], "Tree cover (10) is the largest group."),
-    (4, "scrub", "Shrubland", "#c9b07a", [20], "Shrubland (20) is the largest group."),
-    (5, "grassland", "Grassland", "#a9b35a", [30, 100], "Grassland (30) plus moss and lichen (100) is the largest group."),
-    (7, "cropland", "Cropland", "#c2b84e", [40], "Cropland (40) is the largest group."),
-    (8, "wetland", "Wetland", "#4f8a6e", [90, 95], "Herbaceous wetland (90) plus mangroves (95) is the largest group."),
-    (9, "urban", "Built-up", "#8a8378", [50], f"Built-up (50) is ≥ {URBAN_MIN_PCT}% of the hex's land points, whatever else is there."),
-    (10, "barren", "Bare / sparse", "#bfae95", [60], "Bare or sparse vegetation (60) is the largest group."),
-    (11, "ice", "Snow & ice", "#e8eef2", [70], "Snow and ice (70) is the largest group."),
+    (3, "forest_mixed", "Arbolado", "#43703f", [10], "El arbolado (10) es el grupo mayoritario."),
+    (4, "scrub", "Matorral", "#c9b07a", [20], "El matorral (20) es el grupo mayoritario."),
+    (5, "grassland", "Pastizal", "#a9b35a", [30, 100], "El pastizal (30) más musgo y líquenes (100) es el grupo mayoritario."),
+    (7, "cropland", "Cultivos", "#c2b84e", [40], "Los cultivos (40) son el grupo mayoritario."),
+    (8, "wetland", "Humedal", "#4f8a6e", [90, 95], "El humedal herbáceo (90) más los manglares (95) es el grupo mayoritario."),
+    (9, "urban", "Construido", "#8a8378", [50], f"Lo construido (50) es ≥ {URBAN_MIN_PCT} % de los puntos de tierra del hexágono, sea lo que sea el resto."),
+    (10, "barren", "Suelo desnudo / escasa vegetación", "#bfae95", [60], "El suelo desnudo o con escasa vegetación (60) es el grupo mayoritario."),
+    (11, "ice", "Nieve y hielo", "#e8eef2", [70], "La nieve y el hielo (70) son el grupo mayoritario."),
 ]
 COVER_NOTE = (
-    "From ESA WorldCover 2021, last overview (~600 m pixels) sampled every 1 km inside each Spanish hex (about 260 "
-    "points). Permanent water (80) and no-data pixels are ignored; shares are of the remaining land points, rounded to "
-    "whole percent, and the built-up threshold is applied to the rounded built-up share. Olive groves and other woody "
-    "crops can appear as tree cover or shrubland, greenhouses as built-up, and pastures are inside grassland (no "
-    "separate pasture share). Foreign hexes have cover 0 (none)."
+    "De ESA WorldCover 2021, última vista general (píxeles de ~600 m) muestreada cada 1 km dentro de cada hexágono español "
+    "(unos 260 puntos). El agua permanente (80) y los píxeles sin datos se ignoran; los porcentajes son sobre el resto de "
+    "puntos de tierra, redondeados a porcentaje entero, y el umbral de lo construido se aplica al porcentaje redondeado. "
+    "Los olivares y otros cultivos leñosos pueden salir como arbolado o matorral, los invernaderos como construido, y los "
+    "pastos están dentro del pastizal (no hay porcentaje de pasto aparte). Los hexágonos extranjeros tienen cobertura 0 (ninguna)."
 )
 # Groups competing for the dominant cover (built-up is decided by its threshold first): name -> (codes, cover id).
 GROUPS = {
@@ -466,7 +467,7 @@ def build() -> None:
             raise RuntimeError(f"forced point {name} is outside the grid")
         if owner[i] >= 0:
             continue
-        reason = f"{name} ({munis[mi]['area_km2']:g} km2 municipality) is smaller than one hex" if munis[mi]["area_km2"] < 260 else f"{name}: island had no land hex"
+        reason = f"{name} ({str(round(munis[mi]['area_km2'], 2)).replace('.', ',').removesuffix(',0')} km2) es más pequeña que un hexágono" if munis[mi]["area_km2"] < 260 else f"{name}: isla sin ningún hexágono de tierra"
         owner[i], water[i], county[i] = muni_ccaa[mi], LAND, mi
         county_samples[i] = [mi] * len(offsets)
         forced.append({"cell": i, "name": name, "reason": reason})
@@ -595,7 +596,7 @@ def build() -> None:
             if len(pts) >= 2:
                 rivers.append({"name": name, "rank": rank, "pts": [round(v, 1) for p in pts for v in p]})
 
-    cover_table = [{"id": 0, "key": "none", "name": "None", "rule": "Water, foreign land, or no WorldCover land pixels."}] + [
+    cover_table = [{"id": 0, "key": "none", "name": "Ninguna", "rule": "Agua, tierra extranjera o sin píxeles de tierra de WorldCover."}] + [
         {"id": cid, "key": key, "name": name, "color": color, "worldcover": codes, "rule": rule}
         for cid, key, name, color, codes, rule in COVER
     ]

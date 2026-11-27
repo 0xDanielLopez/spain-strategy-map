@@ -94,14 +94,14 @@ class WorldCover(Source):
     info = SourceInfo(
         id="worldcover",
         title="ESA WorldCover 10 m 2021 v200",
-        publisher="European Space Agency (ESA) WorldCover consortium",
+        publisher="Agencia Espacial Europea (ESA), consorcio WorldCover",
         homepage="https://esa-worldcover.org/",
         license="CC BY 4.0. © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) "
-        "processed by ESA WorldCover consortium. Zanaga et al. 2022, doi:10.5281/zenodo.7254221",
-        description="Global 10 m land cover classes for 2021. Only the smallest overview (~600 m pixels, nearest "
-        "neighbour) of each 3x3 degree tile is read, through HTTP range requests. Each hex's land cover (tree, "
-        "crop, built-up shares) comes from the pixels inside it.",
-        used_for=["Hex land cover", "Tree / crop / built-up shares"],
+        "processed by ESA WorldCover consortium. Zanaga et al. 2022, doi:10.5281/zenodo.7254221. Texto de atribución exigido, se mantiene en inglés.",
+        description="Clases de cobertura del suelo globales a 10 m para 2021. Solo se lee la vista general más pequeña (píxeles de ~600 m, "
+        "vecino más cercano) de cada tesela de 3x3 grados, mediante peticiones HTTP por rangos. La cobertura de cada hexágono "
+        "(porcentajes de arbolado, cultivos y construido) sale de los píxeles que contiene.",
+        used_for=["Cobertura del suelo por hexágono", "Porcentajes de arbolado, cultivos y construido"],
     )
 
     def _last_ifd(self, tile: str, url: str):
@@ -150,7 +150,7 @@ class WorldCover(Source):
         if unknown:
             print(f"    warning: unknown WorldCover codes treated as nodata: {sorted(unknown)}")
         return {
-            "vintage": "ESA WorldCover v200 (2021), last overview (~600 m)",
+            "vintage": "ESA WorldCover v200 (2021), última vista general (~600 m)",
             "_files": files,
             "tiles": tiles,
             "legend": {ch: code for code, ch in LEGEND.items()},

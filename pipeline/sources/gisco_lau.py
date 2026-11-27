@@ -53,15 +53,15 @@ def parse_spanish_municipalities(text: str) -> list[dict]:
 class GiscoLau(Source):
     info = SourceInfo(
         id="gisco_lau",
-        title="Local Administrative Units (LAU) 2024, 1:1 million",
+        title="Unidades Administrativas Locales (LAU) 2024, 1:1 millón",
         publisher="Eurostat GISCO",
         homepage="https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/local-administrative-units",
-        license="© EuroGeographics for the administrative boundaries. GISCO terms: non-commercial use, with this "
-        "notice visible on the map; not covered by this project's MIT licence.",
-        description="Boundaries of the ~8,100 Spanish municipalities (the EU-wide file is filtered to Spain). "
-        "Their union is the Spanish land mass; grouping them by province gives the 19 autonomous communities "
-        "(top level of the map) and the municipalities are the second level.",
-        used_for=["Map: land vs. water", "Autonomous community borders", "Municipality lookup"],
+        license="© EuroGeographics para los límites administrativos. Condiciones de GISCO: uso no comercial, con este aviso "
+        "visible en el mapa; fuera de la licencia MIT de este proyecto.",
+        description="Límites de los ~8.100 municipios españoles (el archivo de toda la UE se filtra a España). "
+        "Su unión es la masa terrestre española; agruparlos por provincia da las 19 comunidades autónomas "
+        "(el nivel superior del mapa) y los municipios son el segundo nivel.",
+        used_for=["Mapa: tierra y agua", "Límites de las comunidades autónomas", "Búsqueda de municipios"],
     )
 
     def fetch(self, force=False):
@@ -77,7 +77,7 @@ class GiscoLau(Source):
         if missing:
             raise ValueError(f"no municipalities for provinces {missing}")
         return {
-            "vintage": "GISCO LAU 2024 (1:1 million)",
+            "vintage": "GISCO LAU 2024 (1:1 millón)",
             "_files": [FILE],
             "municipalities": munis,
             "ccaa": CCAA,

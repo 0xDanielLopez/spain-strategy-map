@@ -25,7 +25,7 @@ export const IMG_H = 900;
 export const CAPTION_H = 118;
 const SERIF = '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif';
 const SANS = '-apple-system, "Segoe UI", system-ui, sans-serif';
-const CREDIT = "Data: EuroGeographics, ESA WorldCover, NOAA ETOPO1, Natural Earth";
+const CREDIT = "Datos: EuroGeographics, ESA WorldCover, NOAA ETOPO1, Natural Earth";
 
 async function copyText(text) {
   try {
@@ -115,7 +115,7 @@ export function composeImage(info, { height = IMG_H } = {}) {
   ctx.fillStyle = "#ecd08e";
   ctx.font = `bold 36px ${SERIF}`;
   spaced(ctx, 5);
-  ctx.fillText("SPAIN", 112, cy + 2);
+  ctx.fillText("ESPAÑA", 112, cy + 2);
   spaced(ctx, 0);
   ctx.fillStyle = "#b9ab88";
   ctx.font = `italic 17px ${SERIF}`;
@@ -130,7 +130,7 @@ export function composeImage(info, { height = IMG_H } = {}) {
   ctx.fillStyle = "#ecd08e";
   ctx.font = `24px ${SERIF}`;
   spaced(ctx, 1.5);
-  ctx.fillText((lens ? lens.name : "Terrain").toUpperCase() + (lens ? " LENS" : ""), mx + 50, cy - 8);
+  ctx.fillText((lens ? "LENTE " + lens.name.toUpperCase() : "TERRENO"), mx + 50, cy - 8);
   spaced(ctx, 0);
   if (lens?.ramp?.length) {
     const rx = mx + 50, ry = cy + 4, rw = 330, rh = 12;
@@ -150,7 +150,7 @@ export function composeImage(info, { height = IMG_H } = {}) {
   } else {
     ctx.font = `15px ${SANS}`;
     ctx.fillStyle = "#b9ab88";
-    ctx.fillText("Land cover, relief, rivers and resources", mx + 50, cy + 16);
+    ctx.fillText("Cobertura del suelo, relieve, ríos y recursos", mx + 50, cy + 16);
   }
 
   // Selection, credits, site
@@ -161,7 +161,7 @@ export function composeImage(info, { height = IMG_H } = {}) {
     ctx.font = `13px ${SANS}`;
     ctx.fillStyle = "#b9ab88";
     spaced(ctx, 2);
-    ctx.fillText(sel.kind === "state" ? "STATE" : "CITY", rx, cy - 30);
+    ctx.fillText(sel.kind === "state" ? "COMUNIDAD" : "CIUDAD", rx, cy - 30);
     spaced(ctx, 0);
     ctx.font = `bold 24px ${SERIF}`;
     ctx.fillStyle = "#f3e6c4";
@@ -213,11 +213,11 @@ export function initShare(opts) {
   let restore = null;
 
   pop.innerHTML = `
-    <div class="sp-title">Share this view</div>
-    <button class="sp-item" data-act="copy">${icon("share", "🔗", { size: 16 })}<span>Copy link</span></button>
-    <button class="sp-item" data-act="image">${icon("terrain", "🖼️", { size: 16 })}<span>Download image <span class="muted">1600×900 PNG</span></span></button>
+    <div class="sp-title">Compartir esta vista</div>
+    <button class="sp-item" data-act="copy">${icon("share", "🔗", { size: 16 })}<span>Copiar enlace</span></button>
+    <button class="sp-item" data-act="image">${icon("terrain", "🖼️", { size: 16 })}<span>Descargar imagen <span class="muted">1600×900 PNG</span></span></button>
     <div class="sp-status" role="status" aria-live="polite"></div>
-    <input class="sp-url" type="text" readonly hidden aria-label="Link to this view">`;
+    <input class="sp-url" type="text" readonly hidden aria-label="Enlace a esta vista">`;
   const status = pop.querySelector(".sp-status");
   const urlBox = pop.querySelector(".sp-url");
 
@@ -255,17 +255,17 @@ export function initShare(opts) {
       opts.beforeCopy?.();
       const link = location.href;
       if (await copyText(link)) {
-        status.textContent = "Link copied to the clipboard";
-        opts.onToast?.("Link copied");
+        status.textContent = "Enlace copiado al portapapeles";
+        opts.onToast?.("Enlace copiado");
       } else {
-        status.textContent = "Copy this link:";
+        status.textContent = "Copia este enlace:";
         urlBox.hidden = false;
         urlBox.value = link;
         urlBox.focus();
         urlBox.select();
       }
     } else if (b.dataset.act === "image") {
-      status.textContent = "Drawing the map…";
+      status.textContent = "Dibujando el mapa…";
       await new Promise((r) => setTimeout(r, 30)); // let the status paint
       try {
         const cv = composeImage(opts.getInfo());
@@ -278,10 +278,10 @@ export function initShare(opts) {
         a.click();
         a.remove();
         setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-        status.textContent = `Saved ${a.download}`;
+        status.textContent = `Guardado: ${a.download}`;
       } catch (err) {
         console.warn(err);
-        status.textContent = "Could not create the image in this browser.";
+        status.textContent = "No se pudo crear la imagen en este navegador.";
       }
     }
   });

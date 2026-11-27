@@ -21,8 +21,8 @@ def dataset():
         "cover": [(3, 4, 5, 7, 8, 9, 10, 11)[i % 8] if o >= 0 else 0 for i, o in enumerate(owner)],
         "pct": {k: [50 if k == "forest" and o >= 0 else 0 for o in owner] for k in check.PCT_KEYS},
         "tables": {
-            "water": [{"id": i, "name": nm} for i, nm in enumerate(["Land", "Ocean", "Coast", "Lake"])],
-            "relief": [{"id": i, "name": nm} for i, nm in enumerate(["Flat", "Hills", "Mountains", "Peaks"])],
+            "water": [{"id": i, "name": nm} for i, nm in enumerate(["Tierra", "Océano", "Costa", "Lago"])],
+            "relief": [{"id": i, "name": nm} for i, nm in enumerate(["Llano", "Colinas", "Montañas", "Picos"])],
             "cover": [{"id": 0, "key": "none", "name": "None"}]
             + [{"id": i, "key": check.COVER_KEYS[i], "name": "x", "color": "#123456"} for i in (3, 4, 5, 7, 8, 9, 10, 11)],
         },

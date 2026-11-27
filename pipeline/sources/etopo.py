@@ -16,13 +16,13 @@ FILE = f"etopo_lat{LAT[0]}_{LAT[1]}_lon{LON[0]}_{LON[1]}_stride{STRIDE}.csv"
 class Etopo(Source):
     info = SourceInfo(
         id="etopo",
-        title="ETOPO1 global relief model",
-        publisher="NOAA National Centers for Environmental Information (via ERDDAP)",
+        title="Modelo global de relieve ETOPO1",
+        publisher="NOAA National Centers for Environmental Information (vía ERDDAP)",
         homepage="https://www.ncei.noaa.gov/products/etopo-global-relief-model",
-        license="Public domain (U.S. Government work)",
-        description="Land elevation and ocean depth, sampled every ~3.7 km. It covers mainland Spain, the Balearic and Canary Islands, Ceuta, Melilla and the neighbouring countries and seas. Each hex's relief (flat, hills, mountains, "
-        "peaks) comes from the mean and roughness (standard deviation) of the land samples inside it.",
-        used_for=["Relief (hills, mountains)", "Hill-shading", "Ocean depth"],
+        license="Dominio público (obra del Gobierno de EE. UU.)",
+        description="Altitud del terreno y profundidad del océano, muestreadas cada ~3,7 km. Cubre la España peninsular, las islas Baleares y Canarias, Ceuta, Melilla y los países y mares vecinos. El relieve de cada hexágono (llano, colinas, montañas, "
+        "picos) sale de la media y la rugosidad (desviación típica) de las muestras de tierra que contiene.",
+        used_for=["Relieve (colinas, montañas)", "Sombreado del relieve", "Profundidad del océano"],
     )
 
     def fetch(self, force=False):
@@ -40,7 +40,7 @@ class Etopo(Source):
                 lon.append(round(float(lo), 4))
                 alt.append(int(float(al)))
         return {
-            "vintage": "ETOPO1, 1 arc-minute, sampled every ~3.7 km",
+            "vintage": "ETOPO1, 1 minuto de arco, muestreado cada ~3,7 km",
             "_files": [FILE],
             "lat": lat,
             "lon": lon,

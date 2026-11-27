@@ -15,7 +15,7 @@ export function openStatePanel(idx, ctx) {
   let st = ctx.states?.[idx];
   if (st && geo.fips && st.fips && st.fips !== geo.fips) st = ctx.states.find((s) => s.fips === geo.fips);
   st = st || { ...geo };
-  const name = st.name || geo.name || "State";
+  const name = st.name || geo.name || "Comunidad";
   const abbr = st.abbr || geo.abbr || "";
   const count = ctx.states?.length || w.raw.states.length;
 
@@ -29,23 +29,23 @@ export function openStatePanel(idx, ctx) {
             <span class="cr-pop">${popShort(c.population)}</span><span class="cr-go" aria-hidden="true">›</span></button>`;
         })
         .join("")}</div>`
-    : `<p class="muted">No metro or micro areas in this state's data.</p>`;
+    : `<p class="muted">No hay áreas urbanas en los datos de esta comunidad.</p>`;
 
   const hasEcon = st.population != null || st.yields;
   showPanel({
     kind: "state",
     stripe: css(w.stateColor[idx] || [190, 190, 190]),
     title: name,
-    sub: `${esc(abbr)}${geo.fips ? ` · FIPS ${esc(geo.fips)}` : ""}`,
+    sub: `${esc(abbr)}${geo.fips ? ` · Código ${esc(geo.fips)}` : ""}`,
     headExtra: hasEcon ? popLine(st, growthSpan(st, n)) : "",
     sections: [
-      st.yields && { title: "Yields · rank among states", html: `<div class="yield-grid">${yieldGrid(nation, st.yields, st.ranks, count)}</div>` },
-      hasEcon && { title: "Amenities &amp; Housing", html: amenities(st, n) + gdpRow(st) },
-      st.jobs && { title: "Top industries · where people work", html: industries(st, nation, 8) },
-      { title: "Biggest cities", html: cityRows },
-      !hasEcon && { title: "Data", html: `<p class="muted">State statistics are not in this data build (states.json is missing).</p>` },
+      st.yields && { title: "Rendimientos · puesto entre comunidades", html: `<div class="yield-grid">${yieldGrid(nation, st.yields, st.ranks, count)}</div>` },
+      hasEcon && { title: "Servicios y vivienda", html: amenities(st, n) + gdpRow(st) },
+      st.jobs && { title: "Principales sectores · dónde trabaja la gente", html: industries(st, nation, 8) },
+      { title: "Ciudades más grandes", html: cityRows },
+      !hasEcon && { title: "Datos", html: `<p class="muted">Las estadísticas de comunidades no están en esta versión de los datos (falta states.json).</p>` },
     ],
-    foot: `Source: ${esc(nation.vintage)}${nation.gdp_vintage ? `; GDP: ${esc(nation.gdp_vintage)}` : ""}. Ranks are among the ${count} mapped states + DC (1 = largest).`,
+    foot: `Fuente: ${esc(nation.vintage)}${nation.gdp_vintage ? `; PIB: ${esc(nation.gdp_vintage)}` : ""}. Los puestos son entre las ${count} comunidades cartografiadas (1 = la mayor).`,
     onClose: ctx.onClose,
     onPedia: ctx.onPedia,
     wire(panel) {

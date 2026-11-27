@@ -11,11 +11,11 @@ def build() -> None:
     write_web(
         "nation.json",
         {
-            "vintage": "Base map (no statistics yet)",
+            "vintage": "Mapa base (sin estadísticas todavía)",
             "year": None,
             "gdp_vintage": None,
             "nation": {
-                "name": "Spain", "population": None, "employed": None, "gdp": None,
+                "name": "España", "population": None, "employed": None, "gdp": None,
                 "yields": {}, "jobs": {}, "growth": None, "growth_years": None,
             },
             "yields": [],

@@ -31,7 +31,7 @@ export function createTable(host, opts) {
     <div class="adv-thead" role="row"></div>
     <div class="adv-tbody" role="rowgroup" tabindex="-1"><div class="adv-tspace"></div></div>`;
   root.setAttribute("role", "table");
-  root.setAttribute("aria-label", opts.caption || "Data table");
+  root.setAttribute("aria-label", opts.caption || "Tabla de datos");
   host.appendChild(root);
   width = Math.round(root.clientWidth) || 0;
   cols = visibleCols();
@@ -68,7 +68,7 @@ export function createTable(host, opts) {
         return dir * (va - vb);
       });
     }
-    if (cnt) cnt.textContent = `${view.length.toLocaleString("en-US")} of ${all.length.toLocaleString("en-US")}`;
+    if (cnt) cnt.textContent = `${view.length.toLocaleString("es-ES")} de ${all.length.toLocaleString("es-ES")}`;
     const maxH = opts.maxHeight || 340;
     const h = Math.min(maxH, Math.max(rowH * 2, view.length * rowH + 2));
     body.style.height = `${h}px`;
@@ -139,7 +139,7 @@ export function createTable(host, opts) {
   });
   // Keyboard: the body is focusable; arrows move the hot row, Enter opens it.
   body.tabIndex = 0;
-  body.setAttribute("aria-label", `${opts.caption || "Table"}: use the arrow keys to move between rows and Enter to open one`);
+  body.setAttribute("aria-label", `${opts.caption || "Tabla"}: usa las flechas para moverte entre filas y Intro para abrir una`);
   body.addEventListener("keydown", (e) => {
     if (!view.length) return;
     let i = view.findIndex((r) => String(keyOf(r)) === String(hot));

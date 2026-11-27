@@ -33,8 +33,8 @@ export function makeLayers(model, on, { tips = {}, app = null } = {}) {
   const moved = (it, html) => {
     if (!html || !it.nudged || typeof html !== "string") return html;
     const city = m.w.cityByCell.get(it.cell);
-    const where = city ? `${esc(city.name)}'s city hex` : "a city hex";
-    return `${html}<br><span class="muted">Drawn on the next hex so it stays visible; its true location falls in ${where}.</span>`;
+    const where = city ? `el hexágono de ${esc(city.name)}` : "un hexágono de ciudad";
+    return `${html}<br><span class="muted">Dibujado en el hexágono contiguo para que se vea; su ubicación real está en ${where}.</span>`;
   };
   const ver = () => `v${m.version}`;
   const grid = () => m.w.grid;

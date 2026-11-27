@@ -10,13 +10,13 @@ BBOX = (-20.0, 26.0, 6.5, 46.5)  # lon/lat window around Spain (incl. the Canary
 class NaturalEarth(Source):
     info = SourceInfo(
         id="natural_earth",
-        title="Natural Earth 1:50m (countries, lakes, rivers)",
+        title="Natural Earth 1:50m (países, lagos, ríos)",
         publisher="Natural Earth",
         homepage="https://www.naturalearthdata.com/",
-        license="Public domain",
-        description="Neighbouring countries (Portugal, France, Andorra, Gibraltar, Morocco, Algeria; shown fogged), large lakes and major rivers. "
-        f"Files are pinned to the natural-earth-vector release {TAG}.",
-        used_for=["Foreign land (Portugal, France, Morocco...)", "Lakes", "Rivers"],
+        license="Dominio público",
+        description="Países vecinos (Portugal, Francia, Andorra, Gibraltar, Marruecos, Argelia; se muestran difuminados), lagos grandes y ríos principales. "
+        f"Los archivos están fijados a la versión {TAG} de natural-earth-vector.",
+        used_for=["Tierra extranjera (Portugal, Francia, Marruecos...)", "Lagos", "Ríos"],
     )
 
     FILES = ["ne_50m_admin_0_countries", "ne_50m_lakes", "ne_50m_rivers_lake_centerlines"]
