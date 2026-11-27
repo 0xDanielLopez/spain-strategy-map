@@ -117,7 +117,7 @@ function stateScope(n, st) {
   const gap = fin(n.population) && n.population > 0 ? (n.population - sum) / n.population : 0;
   const label = "Comunidades";
   if (!st.length || gap < 0.001) return { label, note: "" };
-  const missing = [["AK", "Alaska"], ["HI", "Hawaii"]].filter(([a]) => !abbrs.has(a)).map(([, name]) => name);
+  const missing = [].filter(([a]) => !abbrs.has(a)).map(([, name]) => name);
   const outside = missing.length ? missing.join(" y ") : `${compact(n.population - sum)} residentes`;
   const what = `${st.length - (hasDC ? 1 : 0)} comunidades del mapa`;
   return {
@@ -173,7 +173,7 @@ function reportPopulation(rep, n, st, metros) {
   const since = yrs ? ` since ${yrs[0]}` : "";
   if (fin(n.growth)) rep.context.push(`${signedPct(n.growth)}${since} (Census population estimates)`);
   const emp = ratio(n.employed, n.population);
-  if (emp != null) rep.context.push(`${compact(n.employed)} employed, ${pct(emp)} of residents`);
+  if (emp != null) rep.context.push(`${compact(n.employed)} ocupados, el ${pct(emp)} de los habitantes`);
 
   const g = (o) => o.growth;
   const row = (x, prefix = "") => ({
@@ -203,7 +203,7 @@ function reportPopulation(rep, n, st, metros) {
 
 function reportUnemployment(rep, n, st, metros) {
   const u = (o) => o.unemployment;
-  if (fin(n.unemployment) && n.unemployment > 0) rep.context.push(`About 1 in ${Math.round(1 / n.unemployment)} people in the labour force is out of work`);
+  if (fin(n.unemployment) && n.unemployment > 0) rep.context.push(`Aproximadamente 1 de cada ${Math.round(1 / n.unemployment)} personas activas está en paro`);
   const ss = sorted(st, u);
   if (ss.length >= 2) rep.context.push(`${rep.scope.note ? rep.scope.inMap : rep.scope.label} range from ${pct(ss.at(-1).v)} to ${pct(ss[0].v)}`);
 
@@ -217,7 +217,7 @@ function reportUnemployment(rep, n, st, metros) {
   if (mRows.length) groups.push({ title: `Grandes áreas urbanas (${compact(BIG_METRO_MIN)}+)`, rows: mRows });
   if (groups.length) rep.breakdown = { title: "Dispersión", note: rep.scope.note, groups };
 
-  const hint = `Metros of ${compact(BIG_METRO_MIN)}+ people.`;
+  const hint = `Áreas urbanas de ${compact(BIG_METRO_MIN)} habitantes o más.`;
   const o = { fmt: pct, exact: (v) => pct(v, 2) };
   rep.boards.modes = [
     { id: "abs", label: "Más alto", hint, states: rank(st, u, o), metros: rank(metros, u, { ...o, min: BIG_METRO_MIN }) },
@@ -257,7 +257,7 @@ function reportGold(rep, nation, n, st, metros) {
 function reportJobs(rep, def, nation, n, st, metros) {
   const key = def.key;
   const nShare = ratio(rep.total, n.employed);
-  if (nShare != null) rep.context.push(`${pct(nShare)} of the ${compact(n.employed)} employed`);
+  if (nShare != null) rep.context.push(`${pct(nShare)} de los ${compact(n.employed)} ocupados`);
   const per1k = ratio(rep.total, n.population);
   if (per1k != null) rep.context.push(`${Math.round(per1k * 1000)} per 1,000 residents`);
 
@@ -278,7 +278,7 @@ function reportJobs(rep, def, nation, n, st, metros) {
       const { label, full } = industryLabel(nation, k);
       const s = ratio(v, n.employed);
       const g = n.gdp_by_industry?.[k];
-      const sub = [s != null ? `${pct(s)} of all jobs` : "", fin(g) ? `GDP ${money(g)}` : ""].filter(Boolean).join(" · ");
+      const sub = [s != null ? `${pct(s)} de todos los empleos` : "", fin(g) ? `GDP ${money(g)}` : ""].filter(Boolean).join(" · ");
       return { label, full, iconId: industryIcon(k), emoji: DISTRICT_ICON[k] || "•", value: v, text: compact(v), sub };
     })
     .filter(Boolean)
@@ -289,7 +289,7 @@ function reportJobs(rep, def, nation, n, st, metros) {
   const lq = (o) => (nShare ? ratio(ratio(y(o), o.employed), nShare) : null);
   const shareSub = (o) => {
     const s = ratio(y(o), o.employed);
-    return s != null ? `${pct(s)} of jobs` : "";
+    return s != null ? `${pct(s)} de los empleos` : "";
   };
   const fmtLq = (v) => `×${v.toFixed(2)}`;
   const exactLq = (v) => `×${v.toFixed(3)}`;
