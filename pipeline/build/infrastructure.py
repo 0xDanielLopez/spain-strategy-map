@@ -341,10 +341,14 @@ def _fold(s: str) -> str:
     return "".join(ch for ch in unicodedata.normalize("NFKD", s) if not unicodedata.combining(ch)).lower().strip()
 
 
-def accent_lookup(municipalities: list[dict]) -> dict:
+def accent_lookup(municipalities: list[dict], cities: list[dict] | None = None) -> dict:
     """Folded name -> accented name, from municipality names ("Coruña, A" -> "A Coruña"; "Donostia / San Sebastián" ->
-    both parts). Natural Earth port names come without accents ("Malaga")."""
+    both parts). Natural Earth port names come without accents ("Malaga"). City banner names win, so a port reads
+    like its city ("Valencia", not the municipality's "València")."""
     out = {}
+    for c in cities or []:
+        for part in c["name"].split("/"):
+            out.setdefault(_fold(part), part.strip())
     for m in municipalities:
         for part in m["name"].split("/"):
             part = part.strip()
@@ -414,7 +418,7 @@ def build() -> None:
     rail = build_rail(grid, proj, owner, infra["rail"], foreign_idx)
     cities = json.loads((WEB_DATA / "cities.json").read_text())
     loc = Locator(world, grid, proj, lau["municipalities"], cities)
-    ports = build_ports(loc, infra["ports"], accent_lookup(lau["municipalities"]))
+    ports = build_ports(loc, infra["ports"], accent_lookup(lau["municipalities"], cities))
     airports = build_airports(loc, load_interim("ourairports")["airports"], muni_display(lau["municipalities"]))
 
     doc = {

@@ -103,8 +103,8 @@ export function initPedia(data) {
       const cats = [...new Set(r.types.map((t) => t.category || "other"))];
       return `
       ${h2("resources", "⛏️", "Recursos")}
-      <p>Los recursos marcan las mayores centrales eléctricas, minas y yacimientos de petróleo y gas del país en las casillas donde están.
-      Solo se muestran los emplazamientos relevantes: el umbral de cada tipo está en su descripción. Con el mapa alejado, un hexágono muestra su
+      <p>Los recursos marcan las centrales nucleares, hidroeléctricas y de gas del inventario histórico de 2021 (WRI) en las casillas
+      donde están. No es la potencia actual de España: cada tipo explica qué entra en su descripción. Con el mapa alejado, un hexágono muestra su
       recurso de mayor rango; acerca para ver más. Pulsa <b>R</b> para mostrarlos u ocultarlos.</p>
       ${cats.map((c) => `<h4>${esc(CATEGORY[c] || c)}</h4><table class="res-table">
         <tr><th></th><th>Tipo</th><th>Qué cuenta</th><th>Emplazamientos</th></tr>

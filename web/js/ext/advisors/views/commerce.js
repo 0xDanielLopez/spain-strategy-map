@@ -36,7 +36,7 @@ export async function mount(ctx) {
   // --- cabecera -----------------------------------------------------------------------------------------------
   const nLarge = airports.filter((a) => a.type === "large_airport").length;
   el.insertAdjacentHTML("beforeend", tiles([
-    { label: "Puertos", value: int(ports.length), sub: "principales, de Natural Earth" },
+    { label: "Puertos", value: int(ports.length), sub: "los que marca Natural Earth" },
     { label: "Aeropuertos", value: int(airports.length), sub: `${int(nLarge)} grandes y ${int(airports.length - nLarge)} medianos` },
     { label: "Tramos de autopista o autovía", value: int(nRoad[0] || 0), sub: "enlaces entre casillas" },
   ]) + `<p class="adv-callout">${esc(infra.note || "Sin cifras de tráfico.")}</p>`);
@@ -46,9 +46,9 @@ export async function mount(ctx) {
     link.hover(p ? { cells: new Set(p.cell != null ? [p.cell] : []), label: p.name } : null);
     portBubbles?.setHot(p ? p.key : null);
   };
-  const pBody = section(el, { title: "Puertos", kicker: esc(v.ports || ""), note: "Puertos principales, ordenados por la clase que les da Natural Earth (de mayor a menor importancia). No hay toneladas: esa cifra no tiene licencia abierta." });
+  const pBody = section(el, { title: "Puertos", kicker: esc(v.ports || ""), note: "Los puertos que marca Natural Earth, una selección cartográfica y no por tráfico (faltan Las Palmas, Sevilla o Castellón), ordenados por la clase que les da Natural Earth (de mayor a menor importancia). No hay toneladas: esa cifra no tiene licencia abierta." });
   portTable = createTable(pBody, {
-    caption: "Puertos principales", rank: true, maxHeight: 300, search: "Buscar puertos",
+    caption: "Puertos de Natural Earth", rank: true, maxHeight: 300, search: "Buscar puertos",
     searchText: (p) => `${p.name} ${stateName.get(p.state) || p.state || ""}`,
     columns: [
       { key: "name", label: "Puerto", align: "l", width: "minmax(0,1.5fr)", value: (p) => p.name, text: (p) => p.name },
@@ -124,7 +124,7 @@ export async function mount(ctx) {
   el.insertAdjacentHTML("beforeend", attributionHtml([infra], [
     "Sin cifras de tráfico: ni pasajeros ni toneladas, porque Aena y Puertos del Estado no publican con licencia abierta.",
     "Las carreteras y los ferrocarriles de Natural Earth son una versión simplificada, no la red real: el ferrocarril de nivel secundario es especialmente denso y es arte de mapa.",
-    "Los puertos son los principales de Natural Earth (sin tildes en los nombres); los aeropuertos, los grandes y medianos de OurAirports.",
+    "Los puertos son los que marca Natural Earth, una selección cartográfica que deja fuera puertos con mucho tráfico; los aeropuertos, los grandes y medianos de OurAirports.",
   ]));
 
   return {

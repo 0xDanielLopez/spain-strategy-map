@@ -37,7 +37,7 @@ NOTE = (f"Totales de las centrales representadas, según el {VINTAGE}: no son la
 
 def _t(id, name, emoji, color, what):
     return {"id": id, "name": name, "category": "energy", "emoji": emoji, "icon": f"r-{id}", "color": color,
-            "unit": "MW", "source": "gppd",
+            "unit": "MW", "source": "gppd", "as_of": "inventario de 2021",
             "description": f"{what} Es el {VINTAGE}. El valor es la capacidad instalada de la central en MW. "
                            "Entran todas las centrales de España con ese combustible principal, sin umbral de capacidad."}
 

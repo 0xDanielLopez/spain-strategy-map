@@ -36,7 +36,7 @@ export function showCellTooltip(mx, my, w, i, lens, showResources = true) {
     for (const it of res.slice(0, 4)) {
       const t = w.resources.typeById.get(it.type);
       const num = it.value == null ? "" : Math.abs(it.value) < 1e6 ? int(it.value) : compact(it.value);
-      const val = num ? ` · ${num}${t.unit ? " " + esc(t.unit) : ""}` : "";
+      const val = (num ? ` · ${num}${t.unit ? " " + esc(t.unit) : ""}` : "") + (t.as_of ? ` (${esc(t.as_of)})` : "");
       const kind = it.name && it.name !== t.name ? ` <span class="muted">· ${esc(t.name)}${val}</span>` : `<span class="muted">${val}</span>`;
       lines.push(`<span style="color:${esc(t.color || "#efe4c6")}">${glyph(t, 13)}</span> ${esc(it.name || t.name)}${kind}`);
     }
