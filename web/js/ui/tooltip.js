@@ -21,12 +21,16 @@ export function showCellTooltip(mx, my, w, i, lens, showResources = true) {
     const cover = w.cover[i] > 0 ? nameOf(w.tables.cover, w.cover[i]) : null;
     const relief = w.relief[i] > 0 ? nameOf(w.tables.relief, w.relief[i]) : null;
     const terrain = [cover, relief].filter(Boolean).join(" · ") || (relief ?? "Tierra");
-    lines.push(`<b>${esc(terrain)}</b> <span class="muted">· ${int(raw.elev[i])} m</span>`);
+    // A city map has no elevation source: do not print a made-up "0 m".
+    const alt = raw.scope ? "" : ` <span class="muted">· ${int(raw.elev[i])} m</span>`;
+    lines.push(`<b>${esc(terrain)}</b>${alt}`);
   }
   const o = raw.owner[i];
   if (o >= 0) {
-    const county = raw.county[i] >= 0 ? raw.counties[raw.county[i]].name + ", " : "";
-    lines.push(`${esc(county)}${esc(raw.states[o].name)}`);
+    const cName = raw.county[i] >= 0 ? raw.counties[raw.county[i]].name : "";
+    // City maps name a section after its district ("Chamberí, sección 07102"): do not repeat the district.
+    const county = cName && !cName.startsWith(raw.states[o].name + ",") ? cName + ", " : "";
+    lines.push(cName && !county ? esc(cName) : `${esc(county)}${esc(raw.states[o].name)}`);
     if (lens) lines.push(`${glyph(lens, 13)} ${esc(lens.name)}: <b>${formatLensValue(lens, lens.values[i])}</b>`);
   } else if (o === FOREIGN) {
     lines.push(`<span class="muted">Más allá de las fronteras (sin cartografiar)</span>`);
