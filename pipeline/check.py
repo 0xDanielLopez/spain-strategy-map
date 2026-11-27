@@ -1106,6 +1106,47 @@ def run_builder_checks(r: Report, web_dir: Path, checks=None) -> None:
             r._add(level, f"{name}: {msg}")
 
 
+def check_simple(r: Report, web_dir: Path) -> None:
+    """simple.json (simple interface), only when the file exists: size, a row and a shape for every municipality of
+    counties.json, indicator order, Sevilla's income against counties.json, 10-value series, names without a trailing
+    article."""
+    path = web_dir / "simple.json"
+    if not path.exists():
+        return
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        r.fail(f"simple.json: invalid JSON ({exc})")
+        return
+    size = path.stat().st_size
+    (r.ok if size < 2_600_000 else r.fail)(f"simple.json: {size / 1e6:.2f} MB (limit 2.6 MB)")
+    cols = (doc.get("munis") or {}).get("cols") or []
+    rows = (doc.get("munis") or {}).get("rows") or []
+    keys = [i.get("key") for i in doc.get("indicators", [])]
+    (r.ok if cols[5:] == keys and len(keys) == 9 else r.fail)("simple.json: indicator order matches the municipal columns")
+    counties = _load(r, web_dir, "counties.json", False)
+    if counties:
+        ci = {k: i for i, k in enumerate(counties["columns"])}
+        have = {row[0] for row in rows}
+        shapes = (doc.get("shapes") or {}).get("munis") or {}
+        missing = [c[0] for c in counties["rows"] if c[0] not in have or not shapes.get(c[0])]
+        (r.ok if not missing else r.fail)(f"simple.json: every municipality of counties.json has a row and a shape"
+                                          + (f" (missing {len(missing)}, e.g. {missing[:3]})" if missing else ""))
+        sev = next((c for c in counties["rows"] if c[0] == "41091"), None)
+        mine = next((row for row in rows if row[0] == "41091"), None)
+        if sev and mine and "income" in cols:
+            ok = mine[cols.index("income")] == int(sev[ci["income"]])
+            (r.ok if ok else r.fail)("simple.json: Sevilla income equals counties.json")
+    ser = doc.get("series") or {}
+    bad = [k for k, v in (ser.get("munis") or {}).items() if len(v) != 10]
+    bad += [k for k, v in (ser.get("provinces") or {}).items() if len(v) != 10]
+    ok = len(ser.get("years") or []) == 10 and len(ser.get("nation") or []) == 10 and not bad
+    (r.ok if ok else r.fail)("simple.json: every series has 10 values" + (f" (bad: {bad[:3]})" if bad else ""))
+    tail = re.compile(r", (El|La|Los|Las|L'|Els|Les|A|O|Os|As)$")
+    names = [row[1] for row in rows if tail.search(row[1])]
+    (r.ok if not names else r.fail)("simple.json: no name ends with an article" + (f" (e.g. {names[:3]})" if names else ""))
+
+
 def check_lens_series(r: Report, web_dir: Path) -> None:
     """lens_series.json (year slider data), only when the file exists: years ascending, array lengths, the latest
     year of every series against the current lens of lenses.json, file size."""
@@ -1204,6 +1245,7 @@ def run(web_dir: Path = WEB_DATA, interim_dir: Path = INTERIM, quiet: bool = Fal
     run_builder_checks(r, web_dir, builder_checks_)
     check_city_scopes(r, web_dir)
     check_lens_series(r, web_dir)
+    check_simple(r, web_dir)
     return r
 
 

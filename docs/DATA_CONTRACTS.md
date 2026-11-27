@@ -306,6 +306,34 @@ each year, not adjusted for inflation, and each municipality is spread over its 
   `income`, `adrh_pop`, `age`, `over65`, `under18`, `household`, `single_households` (percentages as INE gives them,
   0-100) and `pop` (census). A missing value is absent, never 0.
 
+### simple.json
+
+Data of the simple interface (`web/simple/`): a map of municipal boundaries and a card per municipality. Produced by
+`pipeline/build/simple.py` (REQUIRES `gisco_lau`, `ine_series`, `counties.json`, `projection.json`, `states.json`); run
+`uv run python -m pipeline build simple`. Under 2.6 MB (`check` fails above). Percentages are 0-100, income is an integer in
+euros, `null` is "sin dato" and is never 0. Codes: municipality = 5-digit INE string, province = 2 digits, ccaa = 2 digits.
+
+- `meta`: `{"sources", "years", "shapes_note", "built"}`. `sources` is Spanish (INE and "Límites municipales: Eurostat GISCO,
+  © EuroGeographics"); `built` is the data vintage text, no clock time.
+- `indicators[]`: 9 entries in this order: income, age_mean, growth, density, elderly, foreign, household, poverty,
+  higher_education. Each: `{"key", "label", "unit", "format", "year", "source", "higher_is", "icon"}`. `format` is
+  `eur`, `years`, `pct`, `int` or `dec1`; `higher_is` is `better` or `neutral`.
+- `munis`: `{"cols", "rows"}`; columns `code, name, province, ccaa, population` plus the 9 indicator keys (cols 5..13).
+  Names are natural: the article that the INE puts last goes first ("Las Palmas de Gran Canaria"), each side of a
+  bilingual "A/B" name alone. `growth` is the change 2021-2026 in %.
+- `provinces[]`: `{"code", "name", "ccaa", "ccaa_name", "population", "values"}`; `values` is the population-weighted mean
+  of each indicator (density = people / km2).
+- `nation[key]`: `{"value", "median", "q"}`; `value` weighted by population, `median` and `q` (p5, p25, p50, p75, p95) over
+  municipalities with a value.
+- `series`: income per person by year: `{"years" (2015-2024), "nation", "provinces", "munis"}`, 10 values each, `null` for a gap.
+- `shapes`: `{"w": 1000, "h", "munis": {code: svg path}}` (equal-area map, Canarias in a lower-right inset, integer
+  coordinates, Douglas-Peucker 0.6, secondary parts under 1.5 units2 dropped). Top level `provinces_bbox` (`[x0,y0,x1,y1]`
+  per province) and `munis_centroid` (`[x,y]`) use the same box.
+- `findings.income`: three Spanish sentences computed by the builder: the share of municipalities above the national
+  income north and south of Madrid city (islands and the African cities count as south), the richest province and the
+  poorest with the ratio.
+- Sources: counties.json (rows), `ine_series` (income series), `gisco_lau` (boundaries, ccaa), `states.json` (ccaa names).
+
 ## resources.json
 
 ```jsonc
